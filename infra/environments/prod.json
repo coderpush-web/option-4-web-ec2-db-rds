@@ -2,10 +2,12 @@
   "Parameters": {
     "EnvironmentName": "prod",
     "EC2InstanceType": "t3.small",
-    "RDSInstanceClass": "db.t4g.small",
+    "RDSInstanceClass": "db.t3.small",
     "WebVolumeSize": "30",
-    "RDSAllocatedStorage": "20",
+    "RDSAllocatedStorage": "50",
     "DBUser": "appadmin",
-    "DBPassword": "ProdP@ssw0rdMasterSecure2026!"
+    "DBPassword": "P@ssw0rdSecure2026Prod!",
+    "DomainName": "png261.dev",
+    "SubdomainName": "opt4.png261.dev"
   }
 }
