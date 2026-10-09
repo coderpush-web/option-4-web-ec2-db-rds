@@ -1,5 +1,5 @@
 AWSTemplateFormatVersion: '2010-09-09'
-Description: 'Application Compute Module: Option 4 - EC2 Web + AWS Managed RDS MySQL'
+Description: 'Application Compute Module: Option 4 - EC2 Web (Docker from ECR) + AWS Managed RDS MySQL'
 
 Parameters:
   EnvironmentName:
@@ -10,12 +10,10 @@ Parameters:
   EC2InstanceType:
     Type: String
     Default: t3.micro
-    Description: EC2 Instance Type (t3.micro for dev, t3.small/t4g.small for prod)
 
   RDSInstanceClass:
     Type: String
     Default: db.t3.micro
-    Description: RDS Instance Class (db.t3.micro for dev, db.t4g.small for prod)
 
   WebVolumeSize:
     Type: Number
@@ -38,15 +36,17 @@ Parameters:
     Type: AWS::SSM::Parameter::Value<AWS::EC2::Image::Id>
     Default: /aws/service/ami-amazon-linux-latest/al2023-ami-kernel-default-x86_64
 
+  ImageTag:
+    Type: String
+    Default: latest
+
   DomainName:
     Type: String
     Default: png261.dev
-    Description: Root domain name
 
   SubdomainName:
     Type: String
     Default: opt4-dev.png261.dev
-    Description: Subdomain for this environment (e.g. opt4-dev.png261.dev or opt4.png261.dev)
 
 Resources:
   DBSubnetGroup:
@@ -65,27 +65,26 @@ Resources:
   RDSInstance:
     Type: AWS::RDS::DBInstance
     Properties:
-      DBInstanceIdentifier: !Sub '${EnvironmentName}-rds-mysql'
-      Engine: mysql
-      EngineVersion: '8.4.3'
-      DBInstanceClass: !Ref RDSInstanceClass
+      DBInstanceIdentifier: !Sub '${EnvironmentName}-mysql-rds'
       AllocatedStorage: !Ref RDSAllocatedStorage
-      StorageType: gp3
-      StorageEncrypted: true
-      CopyTagsToSnapshot: true
-      DBName: appdb
+      DBInstanceClass: !Ref RDSInstanceClass
+      Engine: mysql
+      EngineVersion: '8.0.46'
       MasterUsername: !Ref DBUser
       MasterUserPassword: !Ref DBPassword
+      DBName: appdb
       DBSubnetGroupName: !Ref DBSubnetGroup
       VPCSecurityGroups:
         - Fn::ImportValue: !Sub '${EnvironmentName}-DatabaseSecurityGroupId'
-      PubliclyAccessible: false
-      BackupRetentionPeriod: 7
       MultiAZ: false
+      PubliclyAccessible: false
+      StorageType: gp3
+      BackupRetentionPeriod: 7
       DeleteAutomatedBackups: true
+      DeletionProtection: false
       Tags:
         - Key: Name
-          Value: !Sub '${EnvironmentName}-rds-instance'
+          Value: !Sub '${EnvironmentName}-mysql-rds'
         - Key: Environment
           Value: !Ref EnvironmentName
 
@@ -110,93 +109,52 @@ Resources:
         Fn::Base64: !Sub
           - |
             #!/bin/bash
+            set -e
             dnf update -y
-            dnf install -y nodejs npm
+            dnf install -y docker aws-cli
+            systemctl enable docker
+            systemctl start docker
+            usermod -aG docker ec2-user
 
-            mkdir -p /opt/app
-            cat << 'EOF' > /opt/app/package.json
-            {
-              "name": "sample-web-app",
-              "version": "1.0.0",
-              "main": "server.js",
-              "dependencies": {
-                "express": "^4.19.2",
-                "mysql2": "^3.9.7"
-              }
-            }
-            EOF
+            AWS_REGION="${AWS::Region}"
+            ACCOUNT_ID="${AWS::AccountId}"
+            IMAGE_URI="${AWS::AccountId}.dkr.ecr.${AWS::Region}.amazonaws.com/${EnvironmentName}-option-4-web-app:${ImageTag}"
 
-            cat << 'EOF' > /opt/app/server.js
-            const express = require('express');
-            const mysql = require('mysql2/promise');
-            const app = express();
-            const port = 80;
+            echo "Logging into Amazon ECR..."
+            aws ecr get-login-password --region "${AWS::Region}" | docker login --username AWS --password-stdin "${AWS::AccountId}.dkr.ecr.${AWS::Region}.amazonaws.com" || true
 
-            const pool = mysql.createPool({
-              host: process.env.DB_HOST,
-              user: process.env.DB_USER,
-              password: process.env.DB_PASSWORD,
-              database: process.env.DB_NAME,
-              waitForConnections: true,
-              connectionLimit: 5,
-              connectTimeout: 5000
-            });
+            echo "Pulling Docker image: $IMAGE_URI"
+            docker pull "$IMAGE_URI" || true
 
-            app.get('/health', (req, res) => res.json({ status: 'ok', env: '${EnvTag}' }));
-            app.get('/', async (req, res) => {
-              let dbStatus = 'Checking RDS connection...';
-              try {
-                const [rows] = await pool.query('SELECT 1 + 1 AS solution, NOW() as current_time');
-                dbStatus = `Connected to RDS successfully (Result: ` + rows[0].solution + `, Time: ` + rows[0].current_time + `)`;
-              } catch (err) {
-                dbStatus = 'Connection error: ' + err.message;
-              }
-              res.send(`
-                <!DOCTYPE html><html><body style="font-family:sans-serif;background:#f4f6f8;padding:40px;">
-                <div style="background:white;padding:24px;border-radius:8px;max-width:650px;margin:0 auto;box-shadow:0 4px 6px rgba(0,0,0,0.1)">
-                  <h1 style="color:#ff9900;">🚀 Option 4: EC2 Web + Managed RDS (${EnvTag})</h1>
-                  <p style="background:#e7f4e8;color:#1e7e34;padding:12px;border-radius:4px;">
-                    <strong>RDS Status:</strong> ` + dbStatus + `
-                  </p>
-                  <table style="width:100%;border-collapse:collapse;">
-                    <tr><th style="text-align:left;padding:6px;border-bottom:1px solid #ddd;">RDS Endpoint</th><td style="padding:6px;border-bottom:1px solid #ddd;">${RDSHost}</td></tr>
-                    <tr><th style="text-align:left;padding:6px;border-bottom:1px solid #ddd;">Database Name</th><td style="padding:6px;border-bottom:1px solid #ddd;">appdb</td></tr>
-                    <tr><th style="text-align:left;padding:6px;">Environment</th><td style="padding:6px;">${EnvTag}</td></tr>
-                  </table>
-                </div></body></html>
-              `);
-            });
-            app.listen(port, () => console.log('Listening on port ' + port));
-            EOF
-
-            cd /opt/app
-            npm install
-
-            cat << EOF > /etc/systemd/system/webapp.service
+            cat << 'SVC' > /etc/systemd/system/react-webapp.service
             [Unit]
-            Description=Web App Service
-            After=network.target
+            Description=Dockerized React Web App connected to RDS MySQL
+            After=docker.service
+            Requires=docker.service
 
             [Service]
-            Type=simple
-            User=root
-            WorkingDirectory=/opt/app
-            Environment=DB_HOST=${RDSHost}
-            Environment=DB_USER=${User}
-            Environment=DB_PASSWORD=${Password}
-            Environment=DB_NAME=appdb
-            ExecStart=/usr/bin/node /opt/app/server.js
+            TimeoutStartSec=0
             Restart=always
+            ExecStartPre=-/usr/bin/docker stop react-webapp
+            ExecStartPre=-/usr/bin/docker rm react-webapp
+            ExecStart=/usr/bin/docker run --name react-webapp -p 80:80 \
+              -e APP_ENV=${EnvironmentName} \
+              -e PORT=80 \
+              -e DB_HOST=${RDSEndpoint} \
+              -e DB_USER=${User} \
+              -e DB_PASSWORD=${Password} \
+              -e DB_NAME=appdb \
+              ${AWS::AccountId}.dkr.ecr.${AWS::Region}.amazonaws.com/${EnvironmentName}-option-4-web-app:${ImageTag}
+            ExecStop=/usr/bin/docker stop react-webapp
 
             [Install]
             WantedBy=multi-user.target
-            EOF
+            SVC
 
             systemctl daemon-reload
-            systemctl enable webapp
-            systemctl start webapp
-          - EnvTag: !Ref EnvironmentName
-            RDSHost: !GetAtt RDSInstance.Endpoint.Address
+            systemctl enable react-webapp
+            systemctl start react-webapp || true
+          - RDSEndpoint: !GetAtt RDSInstance.Endpoint.Address
             User: !Ref DBUser
             Password: !Ref DBPassword
       Tags:
@@ -220,8 +178,11 @@ Outputs:
   WebsiteURL:
     Description: Website URL
     Value: !Sub 'http://${WebServerEIP.PublicIp}'
-  RDSEndpoint:
-    Description: Managed RDS Endpoint Address
+  PublicIP:
+    Description: Elastic IP
+    Value: !Ref WebServerEIP
+  RDSEndpointAddress:
+    Description: RDS Endpoint Address
     Value: !GetAtt RDSInstance.Endpoint.Address
   CustomDomainURL:
     Description: Custom Domain Website URL (png261.dev)
