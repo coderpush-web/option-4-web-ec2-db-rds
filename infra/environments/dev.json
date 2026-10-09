@@ -5,7 +5,9 @@
     "RDSInstanceClass": "db.t3.micro",
     "WebVolumeSize": "20",
     "RDSAllocatedStorage": "20",
-    "DBUser": "appdev",
-    "DBPassword": "DevP@ssw0rdSecure2026!"
+    "DBUser": "appadmin",
+    "DBPassword": "P@ssw0rdSecure2026Dev!",
+    "DomainName": "png261.dev",
+    "SubdomainName": "opt4-dev.png261.dev"
   }
 }
