@@ -1,0 +1,11 @@
+{
+  "Parameters": {
+    "EnvironmentName": "dev",
+    "EC2InstanceType": "t3.micro",
+    "RDSInstanceClass": "db.t3.micro",
+    "WebVolumeSize": "20",
+    "RDSAllocatedStorage": "20",
+    "DBUser": "appdev",
+    "DBPassword": "DevP@ssw0rdSecure2026!"
+  }
+}

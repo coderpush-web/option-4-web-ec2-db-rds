@@ -1,0 +1,11 @@
+{
+  "Parameters": {
+    "EnvironmentName": "prod",
+    "EC2InstanceType": "t3.small",
+    "RDSInstanceClass": "db.t4g.small",
+    "WebVolumeSize": "30",
+    "RDSAllocatedStorage": "20",
+    "DBUser": "appadmin",
+    "DBPassword": "ProdP@ssw0rdMasterSecure2026!"
+  }
+}
