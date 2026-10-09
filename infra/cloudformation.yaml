@@ -1,0 +1,187 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: 'Option 4 Module: EC2 Web + AWS Managed RDS (Imports common network & security modules)'
+
+Parameters:
+  EnvironmentName:
+    Type: String
+    Default: Production
+  EC2InstanceType:
+    Type: String
+    Default: t3.small
+    AllowedValues: [t3.nano, t3.micro, t3.small, t3.medium]
+  RDSInstanceClass:
+    Type: String
+    Default: db.t4g.small
+    AllowedValues: [db.t3.micro, db.t4g.micro, db.t3.small, db.t4g.small]
+  DBUser:
+    Type: String
+    Default: appadmin
+  DBPassword:
+    Type: String
+    NoEcho: true
+    Default: P@ssw0rdSecure2026!
+  LatestAmiId:
+    Type: AWS::SSM::Parameter::Value<AWS::EC2::Image::Id>
+    Default: /aws/service/ami-amazon-linux-latest/al2023-ami-kernel-default-x86_64
+
+Resources:
+  DBSubnetGroup:
+    Type: AWS::RDS::DBSubnetGroup
+    Properties:
+      DBSubnetGroupDescription: Subnets across 2 AZs for RDS
+      SubnetIds:
+        - Fn::ImportValue: !Sub '${EnvironmentName}-PrivateSubnet1Id'
+        - Fn::ImportValue: !Sub '${EnvironmentName}-PrivateSubnet2Id'
+      Tags:
+        - Key: Name
+          Value: !Sub '${EnvironmentName}-Option4-DBSubnetGroup'
+
+  RDSInstance:
+    Type: AWS::RDS::DBInstance
+    Properties:
+      DBInstanceIdentifier: !Sub '${EnvironmentName}-rds-mysql'
+      Engine: mysql
+      EngineVersion: '8.0.36'
+      DBInstanceClass: !Ref RDSInstanceClass
+      AllocatedStorage: 20
+      StorageType: gp3
+      StorageEncrypted: true
+      CopyTagsToSnapshot: true
+      DBName: appdb
+      MasterUsername: !Ref DBUser
+      MasterUserPassword: !Ref DBPassword
+      DBSubnetGroupName: !Ref DBSubnetGroup
+      VPCSecurityGroups:
+        - Fn::ImportValue: !Sub '${EnvironmentName}-DatabaseSecurityGroupId'
+      PubliclyAccessible: false
+      BackupRetentionPeriod: 7
+      MultiAZ: false
+      DeleteAutomatedBackups: true
+      SkipFinalSnapshot: true
+      Tags:
+        - Key: Name
+          Value: !Sub '${EnvironmentName}-Option4-RDSInstance'
+
+  WebServerInstance:
+    Type: AWS::EC2::Instance
+    DependsOn: RDSInstance
+    Properties:
+      InstanceType: !Ref EC2InstanceType
+      ImageId: !Ref LatestAmiId
+      IamInstanceProfile:
+        Fn::ImportValue: !Sub '${EnvironmentName}-EC2InstanceProfileName'
+      SubnetId:
+        Fn::ImportValue: !Sub '${EnvironmentName}-PublicSubnetId'
+      SecurityGroupIds:
+        - Fn::ImportValue: !Sub '${EnvironmentName}-WebSecurityGroupId'
+      BlockDeviceMappings:
+        - DeviceName: /dev/xvda
+          Ebs:
+            VolumeSize: 30
+            VolumeType: gp3
+            DeleteOnTermination: true
+      UserData:
+        Fn::Base64: !Sub |
+          #!/bin/bash
+          dnf update -y
+          dnf install -y nodejs npm
+
+          mkdir -p /opt/app
+          cat << 'EOF' > /opt/app/package.json
+          {
+            "name": "sample-web-app",
+            "version": "1.0.0",
+            "main": "server.js",
+            "dependencies": {
+              "express": "^4.19.2",
+              "mysql2": "^3.9.7"
+            }
+          }
+          EOF
+
+          cat << 'EOF' > /opt/app/server.js
+          const express = require('express');
+          const mysql = require('mysql2/promise');
+          const app = express();
+          const port = 80;
+
+          const pool = mysql.createPool({
+            host: process.env.DB_HOST,
+            user: process.env.DB_USER,
+            password: process.env.DB_PASSWORD,
+            database: process.env.DB_NAME,
+            waitForConnections: true,
+            connectionLimit: 5,
+            connectTimeout: 5000
+          });
+
+          app.get('/health', (req, res) => res.json({ status: 'ok' }));
+          app.get('/', async (req, res) => {
+            let dbStatus = 'Checking RDS connection...';
+            try {
+              const [rows] = await pool.query('SELECT 1 + 1 AS solution, NOW() as current_time');
+              dbStatus = `Connected to RDS successfully (Result: ${rows[0].solution}, Time: ${rows[0].current_time})`;
+            } catch (err) {
+              dbStatus = 'Connection error: ' + err.message;
+            }
+            res.send(`
+              <!DOCTYPE html><html><body style="font-family:sans-serif;background:#f4f6f8;padding:40px;">
+              <div style="background:white;padding:24px;border-radius:8px;max-width:650px;margin:0 auto;box-shadow:0 4px 6px rgba(0,0,0,0.1)">
+                <h1 style="color:#ff9900;">🚀 Option 4: EC2 Web + AWS Managed RDS</h1>
+                <p style="background:#e7f4e8;color:#1e7e34;padding:12px;border-radius:4px;">
+                  <strong>RDS Status:</strong> ${dbStatus}
+                </p>
+                <table style="width:100%;border-collapse:collapse;">
+                  <tr><th style="text-align:left;padding:6px;border-bottom:1px solid #ddd;">RDS Endpoint</th><td style="padding:6px;border-bottom:1px solid #ddd;">${process.env.DB_HOST}</td></tr>
+                  <tr><th style="text-align:left;padding:6px;border-bottom:1px solid #ddd;">Database Name</th><td style="padding:6px;border-bottom:1px solid #ddd;">${process.env.DB_NAME}</td></tr>
+                  <tr><th style="text-align:left;padding:6px;">Web Host</th><td style="padding:6px;">${require('os').hostname()}</td></tr>
+                </table>
+              </div></body></html>
+            `);
+          });
+          app.listen(port, () => console.log('Listening on port ' + port));
+          EOF
+
+          cd /opt/app
+          npm install
+
+          cat << EOF > /etc/systemd/system/webapp.service
+          [Unit]
+          Description=Web App Service
+          After=network.target
+
+          [Service]
+          Type=simple
+          User=root
+          WorkingDirectory=/opt/app
+          Environment=DB_HOST=${RDSInstance.Endpoint.Address}
+          Environment=DB_USER=${DBUser}
+          Environment=DB_PASSWORD=${DBPassword}
+          Environment=DB_NAME=appdb
+          ExecStart=/usr/bin/node /opt/app/server.js
+          Restart=always
+
+          [Install]
+          WantedBy=multi-user.target
+          EOF
+
+          systemctl daemon-reload
+          systemctl enable webapp
+          systemctl start webapp
+      Tags:
+        - Key: Name
+          Value: !Sub '${EnvironmentName}-Option4-WebServer'
+
+  WebServerEIP:
+    Type: AWS::EC2::EIP
+    Properties:
+      Domain: vpc
+      InstanceId: !Ref WebServerInstance
+
+Outputs:
+  WebsiteURL:
+    Description: Website URL
+    Value: !Sub 'http://${WebServerEIP.PublicIp}'
+  RDSEndpoint:
+    Description: Managed RDS Endpoint Address
+    Value: !GetAtt RDSInstance.Endpoint.Address
