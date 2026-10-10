@@ -1,8 +1,6 @@
-import postgres from 'postgres';
+import { getSqlClient } from '../lib/db';
 
-const sql = postgres(process.env.POSTGRES_URL!, { ssl: 'require' });
-
-async function listInvoices() {
+async function listInvoices(sql: any) {
   const data = await sql`
     SELECT invoices.amount, customers.name
     FROM invoices
@@ -21,8 +19,16 @@ export async function GET() {
     );
   }
 
+  const sql = getSqlClient();
+  if (!sql) {
+    return Response.json(
+      { message: 'Database connection not configured' },
+      { status: 503 }
+    );
+  }
+
   try {
-    return Response.json(await listInvoices());
+    return Response.json(await listInvoices(sql));
   } catch (error) {
     console.error('Database query error:', error);
     return Response.json({ message: 'Failed to query database' }, { status: 500 });

@@ -1,4 +1,4 @@
-# Technical Documentation - Option 4: Web ASG EC2 + Managed RDS MySQL (Recommended)
+# Technical Documentation - Option 4: Web ASG EC2 + Managed RDS PostgreSQL 16 (Recommended)
 
 Welcome to the technical documentation for **Option 4: 1 EC2 Web ASG + 1 AWS Managed RDS Database (Recommended Architecture)**.
 
@@ -45,15 +45,15 @@ Option 4 represents the AWS Well-Architected recommendation for production workl
         ├── Web EC2 Instance 1 (Docker Next.js)
         └── Web EC2 Instance 2 (Docker Next.js)
                 │
-                ▼ (Port 3306 / Encrypted TLS)
-[AWS Managed RDS MySQL 8.0] ──────── (DB Subnet Group - Multi-AZ Private)
+                ▼ (Port 5432 / Encrypted TLS)
+[AWS Managed RDS PostgreSQL 16] ──────── (DB Subnet Group - Multi-AZ Private)
         ├── Primary DB Instance (AZ1)
         └── Standby Replica (AZ2 - Multi-AZ Failover in Prod)
 ```
 
 ### Key Architectural Highlights:
-- **Fully Managed RDS MySQL 8.0:** Automated OS and DB patching, automated daily backups with Point-In-Time Restore (PITR), and Multi-AZ automatic failover in production.
-- **Deep Private Subnet Isolation:** Both Web EC2 instances and the RDS cluster reside in Private Subnets. RDS accepts port 3306 traffic exclusively from the Web Security Group.
+- **Fully Managed RDS PostgreSQL 16:** Automated OS and DB patching, automated daily backups with Point-In-Time Restore (PITR), and Multi-AZ automatic failover in production.
+- **Deep Private Subnet Isolation:** Both Web EC2 instances and the RDS cluster reside in Private Subnets. RDS accepts port 5432 traffic exclusively from the Web Security Group.
 - **Horizontal Elasticity:** Web ASG dynamically adjusts capacity (min 1–2, max 4–6) across multiple Availability Zones based on target tracking CPU utilization (70%).
 - **Amazon CloudFront CDN:** Edge caching globally distributes static assets and accelerates dynamic API requests over AWS global backbone.
 - **Zero-Downtime Rolling Deployments:** Rolling instance refreshes update the web application tier with zero downtime and automatic health checks.

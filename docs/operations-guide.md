@@ -1,4 +1,4 @@
-# Operations & Usage Guide - Option 4: Web ASG EC2 + Managed RDS MySQL (Recommended)
+# Operations & Usage Guide - Option 4: Web ASG EC2 + Managed RDS PostgreSQL 16 (Recommended)
 
 This guide covers local development, AWS Managed RDS database operations, automated backups, Point-In-Time Restore (PITR), remote host administration, and troubleshooting for **Option 4: 1 EC2 Web ASG + 1 AWS Managed RDS Database**.
 
@@ -45,9 +45,9 @@ aws cloudformation describe-stacks \
   --output text
 ```
 
-- **Port:** `3306`
+- **Port:** `5432`
 - **Default Database:** `appdb`
-- **Master Username:** `admin` (or parameter configured in `dev.json` / `prod.json`)
+- **Master Username:** `appadmin` (or parameter configured in `dev.json` / `prod.json`)
 - **Encryption:** Storage encrypted with AWS KMS (`aws/rds`).
 
 ### Connecting to RDS via a Bastion / SSM Web Instance:
@@ -57,7 +57,7 @@ Because RDS is inside Private Subnets with no public accessibility, connect to a
 aws ssm start-session --target <WEB_INSTANCE_ID>
 
 # 2. Connect to RDS from the EC2 shell
-mysql -h <RDS_ENDPOINT> -P 3306 -u admin -p appdb
+psql -h <RDS_ENDPOINT> -p 5432 -U appadmin -d appdb
 ```
 
 ---
@@ -71,7 +71,7 @@ Amazon RDS automatically performs daily storage snapshots and captures transacti
 
 ### Creating an On-Demand Manual RDS Snapshot:
 ```bash
-DB_INSTANCE_IDENTIFIER="dev-app-mysqldb" # Look up in AWS RDS Console or CLI
+DB_INSTANCE_IDENTIFIER="dev-postgres-rds" # Look up in AWS RDS Console or CLI
 
 aws rds create-db-snapshot \
   --db-instance-identifier "$DB_INSTANCE_IDENTIFIER" \
@@ -113,8 +113,8 @@ sudo docker ps
 # View container runtime logs
 sudo docker logs -f $(sudo docker ps -q)
 
-# Test TCP connectivity to RDS endpoint on port 3306
-nc -zv <RDS_ENDPOINT> 3306
+# Test TCP connectivity to RDS endpoint on port 5432
+nc -zv <RDS_ENDPOINT> 5432
 ```
 
 ---
@@ -134,7 +134,7 @@ aws logs tail /aws/ec2/dev-opt4 --follow --format short
 Option 4 includes automated alerts across both tiers:
 1. **ALB 5XX Errors Alarm:** Triggers when ALB 5XX errors exceed 10 in 1 minute.
 2. **Web CPU Utilization Alarm:** Triggers when ASG average CPU utilization exceeds 85% for 5 minutes.
-3. **RDS CPU Utilization Alarm:** Triggers when RDS MySQL instance CPU utilization exceeds 85% for 5 minutes.
+3. **RDS CPU Utilization Alarm:** Triggers when RDS PostgreSQL instance CPU utilization exceeds 85% for 5 minutes.
 4. **RDS Free Storage Space:** Monitors available disk capacity and triggers auto-expansion before exhaustion.
 
 All alarms notify via **Amazon SNS Topic** (`${EnvironmentName}-ops-alerts`), delivering emails to the operations team.
@@ -146,7 +146,7 @@ All alarms notify via **Amazon SNS Topic** (`${EnvironmentName}-ops-alerts`), de
 ### Issue 1: Web Application Cannot Reach RDS Database
 - **Cause:** Security Group ingress rules misconfigured or RDS instance in `modifying`/`rebooting` state.
 - **Remediation:**
-  1. Verify the RDS Security Group allows port 3306 inbound from the Web Security Group.
+  1. Verify the RDS Security Group allows port 5432 inbound from the Web Security Group.
   2. Check RDS status: `aws rds describe-db-instances --db-instance-identifier <ID> --query "DBInstances[0].DBInstanceStatus"`.
   3. Verify DNS resolution of the RDS endpoint inside the EC2 instance: `getent hosts <RDS_ENDPOINT>`.
 

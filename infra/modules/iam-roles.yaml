@@ -1,5 +1,5 @@
 AWSTemplateFormatVersion: '2010-09-09'
-Description: 'Common IAM Module: SSM Session Manager Role & ECR Read Only for secure instance remote access'
+Description: 'Common IAM Module: SSM Session Manager Role, ECR Read Only, and Least-Privilege Secrets Manager Access'
 
 Parameters:
   EnvironmentName:
@@ -31,7 +31,16 @@ Resources:
                 Action:
                   - 'secretsmanager:GetSecretValue'
                   - 'secretsmanager:DescribeSecret'
-                Resource: !Sub 'arn:aws:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:${EnvironmentName}-*'
+                Resource:
+                  - !Sub 'arn:aws:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:${EnvironmentName}-rds-*'
+                  - !Sub 'arn:aws:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:${EnvironmentName}-web-*'
+              - Effect: Allow
+                Action:
+                  - 'kms:Decrypt'
+                Resource: '*'
+                Condition:
+                  StringEquals:
+                    kms:CallerAccount: !Ref AWS::AccountId
       Tags:
         - Key: Name
           Value: !Sub '${EnvironmentName}-ec2-ssm-role'

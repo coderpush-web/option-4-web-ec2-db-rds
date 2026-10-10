@@ -24,7 +24,7 @@ Independent infrastructure and application source code for **Option 4: 1 EC2 Web
 ## 2. Multi-Dimension Cost Analysis
 
 ### A. Cost by Purchasing Option & Optimization (Singapore Region: `ap-southeast-1`)
-| Purchasing Model | Web Compute (EC2) | RDS Managed (MySQL) | Storage, IP & Backup | Total Monthly Cost | Approx. Local Currency (VND) |
+| Purchasing Model | Web Compute (EC2) | RDS Managed (PostgreSQL) | Storage, IP & Backup | Total Monthly Cost | Approx. Local Currency (VND) |
 | :--- | :--- | :--- | :--- | :--- | :--- |
 | **On-Demand (Default)** | $15.18 | $23.36 (`db.t4g.small`) | $9.10 | **$47.64 / mo** | ~1,203,000 VND |
 | **1-Year Savings Plan / RI** | $9.56 | $16.82 | $9.10 | **$35.48 / mo** *(25% savings)* | ~895,000 VND |
@@ -62,7 +62,7 @@ flowchart TD
             end
 
             subgraph DB_Tier ["Database Tier (Private Subnets Multi-AZ)"]
-                RDS["AWS Managed RDS MySQL 8.0<br/>(Multi-AZ in Prod, Encrypted GP3)"]
+                RDS["AWS Managed RDS PostgreSQL 16<br/>(Multi-AZ in Prod, Encrypted GP3)"]
             end
         end
     end
@@ -80,7 +80,7 @@ flowchart TD
     Users --> Domain --> CF
     CF -->|Dynamic requests| ALB
     ALB --> TG --> ASG
-    ASG -->|SQL Queries (Port 3306)| RDS
+    ASG -->|SQL Queries (Port 5432)| RDS
     ASG -.->|Resolve Secret| SM
     SM -.->|Manage Master Creds| RDS
     ASG -.->|Logs| CW_Logs
@@ -96,7 +96,7 @@ flowchart TD
 - **CloudFront CDN Edge Caching:** Caches static assets (`/_next/static/*`, `/static/*`) globally, offloading 80–90% of requests from origin servers, lowering TTFB, and accelerating global page load times.
 - **Application Load Balancer (ALB):** Spans Multi-AZ Public Subnets, balancing incoming HTTP/HTTPS traffic with automated health probes on `/api/health`.
 - **Web Auto Scaling Group (ASG):** Resides securely within **Private Subnets (AZ1 & AZ2)**, automatically scaling EC2 instances based on CPU utilization (70% target tracking).
-- **AWS Managed RDS MySQL (Multi-AZ):** Fully managed relational database located deep within **Private Subnets (AZ1 & AZ2)** with automated daily backups, storage encryption, and automated Multi-AZ failover.
+- **AWS Managed RDS PostgreSQL (Multi-AZ):** Fully managed relational database located deep within **Private Subnets (AZ1 & AZ2)** with automated daily backups, storage encryption, and automated Multi-AZ failover.
 - **AWS Secrets Manager Integration:** Zero hardcoded plaintext database passwords; credentials securely rotated and dynamically supplied to compute tiers.
 - **Zero-Downtime Rolling Update:** Integrated `aws autoscaling start-instance-refresh` in CI/CD updates container versions progressively without service downtime.
 - **Multi-Tier Monitoring & Alerts:** CloudWatch Alarms (ALB 5XX, Web CPU, RDS Storage, RDS CPU) notify via Amazon SNS Topic; log retention auto-expires after 14 days (Dev) / 30 days (Prod).
@@ -110,7 +110,7 @@ flowchart TD
 
 > 🚀 **Deployment Notes:**
 > - **Development (`opt4-dev.png261.dev`):** Debug configuration, Web Auto Scaling Min 1 - Max 2 instances, single-AZ RDS.
-> - **Production (`opt4.png261.dev`):** Production optimized, Web Auto Scaling Min 2 - Max 6 instances, Multi-AZ RDS MySQL with automated failover and AWS ACM SSL/HTTPS.
+> - **Production (`opt4.png261.dev`):** Production optimized, Web Auto Scaling Min 2 - Max 6 instances, Multi-AZ RDS PostgreSQL with automated failover and AWS ACM SSL/HTTPS.
 
 ## ⚛️ Web Application & Docker / Amazon ECR Delivery
 
@@ -118,7 +118,7 @@ flowchart TD
 - **Application:** Next.js Dashboard & Management Platform.
 - **Frontend Stack:** React 18, Next.js App Router, Tailwind CSS, Lucide Icons.
 - **Backend & API:** Node.js Next.js Server Components and REST routes.
-- **Database:** AWS Managed RDS MySQL 8.0 Multi-AZ in Private Subnet Group.
+- **Database:** AWS Managed RDS PostgreSQL 16 Multi-AZ in Private Subnet Group.
 
 ### 2. Separation of Build and Deployment (Build Once, Deploy Everywhere)
 1. **Multi-Stage Docker Build:**

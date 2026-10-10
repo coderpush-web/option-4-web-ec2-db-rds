@@ -1,4 +1,4 @@
-# Deployment Guide - Option 4: Web ASG EC2 + Managed RDS MySQL (Recommended)
+# Deployment Guide - Option 4: Web ASG EC2 + Managed RDS PostgreSQL 16 (Recommended)
 
 This guide provides end-to-end instructions for deploying the production-grade AWS CloudFormation infrastructure and containerized web application for **Option 4: 1 EC2 Web ASG + 1 AWS Managed RDS Database**.
 
@@ -29,7 +29,7 @@ infra/
     ├── vpc-subnets.yaml     # Module 1: VPC, IGW, Public Subnets (2 AZs), Private Subnets (2 AZs)
     ├── security-groups.yaml # Module 2: Security Groups (ALB, Web Tier, and RDS DB Subnet)
     ├── iam-roles.yaml       # Module 3: EC2 IAM Role & Instance Profile (SSM, ECR ReadOnly)
-    └── app.yaml             # Module 4: ALB, Web ASG, AWS RDS MySQL Instance, CloudFront
+    └── app.yaml             # Module 4: ALB, Web ASG, AWS RDS PostgreSQL 16 Instance, CloudFront
 ```
 
 ---
@@ -49,7 +49,7 @@ Configuration files are located in `infra/environments/dev.json` and `infra/envi
 | `MaxInstances` | `2` | `6` | Maximum Web instances in ASG |
 | `DesiredInstances` | `1` | `2` | Initial Web instance target count |
 | `WebVolumeSize` | `20` | `30` | Root EBS volume size for Web instances (GB) |
-| `DBPassword` | *(secure)* | *(secure)* | Master administrator password for RDS MySQL |
+| `DBPassword` | *(secure)* | *(secure)* | Dynamic password generated in AWS Secrets Manager for RDS PostgreSQL |
 | `LogRetentionDays` | `14` | `30` | CloudWatch log retention period in days |
 
 ---
@@ -62,10 +62,9 @@ The repository features a modular CI/CD pipeline split into 4 focused GitHub Act
 - `.github/workflows/build-ecr.yml`: Builds Docker container image and pushes to Amazon ECR.
 - `.github/workflows/deploy.yml`: Deploys CloudFormation stacks and triggers instance refresh.
 
-### Required GitHub Repository Secrets:
+### Required GitHub Repository Secrets (AWS OIDC Only):
 Under **Settings** -> **Secrets and variables** -> **Actions**:
-- `AWS_ACCESS_KEY_ID`: IAM user/role access key.
-- `AWS_SECRET_ACCESS_KEY`: IAM user/role secret access key.
+- `AWS_ROLE_TO_ASSUME`: IAM Role ARN configured for GitHub Actions OIDC (e.g. `arn:aws:iam::<ACCOUNT_ID>:role/github-actions-deploy-role`).
 - `AWS_REGION`: AWS Region (default: `ap-southeast-1`).
 
 ### Automated Workflow Pipeline:
@@ -134,9 +133,9 @@ aws cloudformation deploy --template-file modules/app.yaml --stack-name "${ENV}-
 
 The script provisions:
 1. `${ENV}-network`: Provisions VPC and Multi-AZ subnets.
-2. `${ENV}-security-groups`: Creates ALB SG, Web SG, and RDS DB SG (port 3306 restricted to Web SG).
+2. `${ENV}-security-groups`: Creates ALB SG, Web SG, and RDS DB SG (port 5432 restricted to Web SG).
 3. `${ENV}-iam`: Configures EC2 Instance Profile with SSM and ECR read-only roles.
-4. `${ENV}-app`: Provisions the AWS Managed RDS MySQL database in the Private DB Subnet Group, launches the Web Auto Scaling Group, ALB, and CloudFront CDN distribution.
+4. `${ENV}-app`: Provisions the AWS Managed RDS PostgreSQL database in the Private DB Subnet Group, launches the Web Auto Scaling Group, ALB, and CloudFront CDN distribution.
 5. Displays stack outputs including database endpoint and CloudFront URL.
 
 ---

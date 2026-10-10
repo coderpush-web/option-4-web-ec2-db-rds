@@ -4,9 +4,9 @@ This directory contains standalone AWS CloudFormation modules supporting both **
 
 ## 1. Module Structure
 - `modules/vpc-subnets.yaml`: Provisions VPC, Internet Gateway, 2 Public Subnets (ALB), and 2 Private Subnets (Web ASG and RDS DB Subnet Group across Multi-AZ).
-- `modules/security-groups.yaml`: Manages Security Groups for ALB, Web Tier, and RDS MySQL (inbound port 3306 restricted strictly to Web SG).
-- `modules/iam-roles.yaml`: Configures EC2 IAM Instance Profile with AWS SSM Session Manager and Amazon ECR ReadOnly access.
-- `modules/app.yaml`: Provisions enterprise compute & managed database resources (Web ASG, AWS Managed RDS MySQL 8.0 instance, ALB, CloudFront Distribution).
+- `modules/security-groups.yaml`: Manages Security Groups for ALB, Web Tier, and RDS PostgreSQL 16 (inbound port 5432 restricted strictly to Web SG).
+- `modules/iam-roles.yaml`: Configures EC2 IAM Instance Profile with AWS SSM Session Manager, Amazon ECR ReadOnly access, and least-privilege Secrets Manager access.
+- `modules/app.yaml`: Provisions enterprise compute & managed database resources (Web ASG, AWS Managed RDS PostgreSQL 16 instance, ALB, CloudFront Distribution).
 
 ## 2. Environment Configuration
 - `environments/dev.json`: Cost-optimized parameters for Development (t3.micro Web, db.t3.micro RDS, single AZ).

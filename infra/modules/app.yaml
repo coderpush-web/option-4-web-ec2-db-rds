@@ -1,5 +1,5 @@
 AWSTemplateFormatVersion: '2010-09-09'
-Description: 'Application Compute Module: Option 4 - Auto Scaling EC2 Web (ALB + ASG) + AWS Managed RDS MySQL'
+Description: 'Application Compute Module: Option 4 - Auto Scaling EC2 Web (ALB + ASG) + AWS Managed RDS PostgreSQL 16'
 
 Parameters:
   EnvironmentName:
@@ -104,8 +104,8 @@ Resources:
   RDSSecret:
     Type: AWS::SecretsManager::Secret
     Properties:
-      Name: !Sub '${EnvironmentName}-rds-mysql-credentials'
-      Description: !Sub 'RDS MySQL credentials for ${EnvironmentName}'
+      Name: !Sub '${EnvironmentName}-rds-postgres-credentials'
+      Description: !Sub 'RDS PostgreSQL credentials for ${EnvironmentName}'
       GenerateSecretString:
         SecretStringTemplate: !Sub '{"username": "${DBUser}"}'
         GenerateStringKey: password
@@ -114,6 +114,22 @@ Resources:
       Tags:
         - Key: Name
           Value: !Sub '${EnvironmentName}-rds-secret'
+        - Key: Environment
+          Value: !Ref EnvironmentName
+
+  WebAuthSecret:
+    Type: AWS::SecretsManager::Secret
+    Properties:
+      Name: !Sub '${EnvironmentName}-web-auth-secret'
+      Description: !Sub 'NextAuth AUTH_SECRET session encryption key for ${EnvironmentName}'
+      GenerateSecretString:
+        SecretStringTemplate: '{"auth_secret": ""}'
+        GenerateStringKey: auth_secret
+        PasswordLength: 32
+        ExcludePunctuation: true
+      Tags:
+        - Key: Name
+          Value: !Sub '${EnvironmentName}-web-auth-secret'
         - Key: Environment
           Value: !Ref EnvironmentName
 
@@ -130,19 +146,35 @@ Resources:
         - Key: Environment
           Value: !Ref EnvironmentName
 
+  RDSParameterGroup:
+    Type: AWS::RDS::DBParameterGroup
+    Properties:
+      Description: Enforce SSL for PostgreSQL 16 RDS instance
+      Family: postgres16
+      Parameters:
+        rds.force_ssl: '1'
+      Tags:
+        - Key: Name
+          Value: !Sub '${EnvironmentName}-rds-pg16-params'
+        - Key: Environment
+          Value: !Ref EnvironmentName
+
   RDSInstance:
     Type: AWS::RDS::DBInstance
-    DeletionPolicy: Delete
+    DeletionPolicy: Snapshot
+    UpdateReplacePolicy: Snapshot
     Properties:
-      DBInstanceIdentifier: !Sub '${EnvironmentName}-mysql-rds'
+      DBInstanceIdentifier: !Sub '${EnvironmentName}-postgres-rds'
       AllocatedStorage: !Ref RDSAllocatedStorage
       DBInstanceClass: !Ref RDSInstanceClass
-      Engine: mysql
-      EngineVersion: '8.0.46'
+      Engine: postgres
+      EngineVersion: '16.9'
+      Port: '5432'
       MasterUsername: !Sub '{{resolve:secretsmanager:${RDSSecret}:SecretString:username}}'
       MasterUserPassword: !Sub '{{resolve:secretsmanager:${RDSSecret}:SecretString:password}}'
       DBName: appdb
       DBSubnetGroupName: !Ref DBSubnetGroup
+      DBParameterGroupName: !Ref RDSParameterGroup
       VPCSecurityGroups:
         - Fn::ImportValue: !Sub '${EnvironmentName}-DatabaseSecurityGroupId'
       MultiAZ: !If [IsProd, true, false]
@@ -150,12 +182,12 @@ Resources:
       StorageType: gp3
       StorageEncrypted: true
       BackupRetentionPeriod: 7
-      DeleteAutomatedBackups: true
+      DeleteAutomatedBackups: false
       DeletionProtection: !If [IsProd, true, false]
       AutoMinorVersionUpgrade: true
       Tags:
         - Key: Name
-          Value: !Sub '${EnvironmentName}-mysql-rds'
+          Value: !Sub '${EnvironmentName}-postgres-rds'
         - Key: Environment
           Value: !Ref EnvironmentName
 
@@ -220,8 +252,26 @@ Resources:
                 Protocol: HTTPS
                 Port: '443'
                 StatusCode: HTTP_301
-          - - Type: forward
-              TargetGroupArn: !Ref ALBTargetGroup
+          - - Type: fixed-response
+              FixedResponseConfig:
+                StatusCode: '403'
+                ContentType: 'text/plain'
+                MessageBody: 'Direct access to ALB is forbidden. Please access via CloudFront distribution.'
+
+  ALBHeaderRule:
+    Type: AWS::ElasticLoadBalancingV2::ListenerRule
+    Properties:
+      ListenerArn: !Ref ALBListener
+      Priority: 10
+      Conditions:
+        - Field: http-header
+          HttpHeaderConfig:
+            HttpHeaderName: 'X-CloudFront-Origin-Verify'
+            Values:
+              - !Sub '${EnvironmentName}-secure-origin-${AWS::AccountId}'
+      Actions:
+        - Type: forward
+          TargetGroupArn: !Ref ALBTargetGroup
 
   ALBHttpsListener:
     Type: AWS::ElasticLoadBalancingV2::Listener
@@ -234,6 +284,25 @@ Resources:
       Certificates:
         - CertificateArn: !Ref CertificateArn
       DefaultActions:
+        - Type: fixed-response
+          FixedResponseConfig:
+            StatusCode: '403'
+            ContentType: 'text/plain'
+            MessageBody: 'Direct access to ALB is forbidden. Please access via CloudFront distribution.'
+
+  ALBHttpsHeaderRule:
+    Type: AWS::ElasticLoadBalancingV2::ListenerRule
+    Condition: HasCertificateArn
+    Properties:
+      ListenerArn: !Ref ALBHttpsListener
+      Priority: 10
+      Conditions:
+        - Field: http-header
+          HttpHeaderConfig:
+            HttpHeaderName: 'X-CloudFront-Origin-Verify'
+            Values:
+              - !Sub '${EnvironmentName}-secure-origin-${AWS::AccountId}'
+      Actions:
         - Type: forward
           TargetGroupArn: !Ref ALBTargetGroup
 
@@ -290,10 +359,18 @@ Resources:
               DB_USER=$(echo "$SECRET_JSON" | python3 -c "import json,sys; print(json.loads(sys.stdin.read())['username'])")
               DB_PASS=$(echo "$SECRET_JSON" | python3 -c "import json,sys; print(json.loads(sys.stdin.read())['password'])")
 
+              echo "Fetching NextAuth secret from AWS Secrets Manager..."
+              AUTH_SECRET=$(aws secretsmanager get-secret-value --secret-id "${WebAuthSecretId}" --region "${AWS::Region}" --query SecretString --output text | python3 -c "import json,sys; s=sys.stdin.read().strip(); print(json.loads(s).get('auth_secret', s) if s.startswith('{') else s)")
+
               cat << EOF > /etc/react-webapp.env
               APP_ENV=${EnvironmentName}
               PORT=80
+              AUTH_SECRET=$AUTH_SECRET
+              AUTH_URL=https://${SubdomainName}
+              POSTGRES_URL=postgres://$DB_USER:$DB_PASS@${RDSEndpoint}:5432/appdb?sslmode=require
+              DATABASE_URL=postgres://$DB_USER:$DB_PASS@${RDSEndpoint}:5432/appdb?sslmode=require
               DB_HOST=${RDSEndpoint}
+              DB_PORT=5432
               DB_USER=$DB_USER
               DB_PASSWORD=$DB_PASS
               DB_NAME=appdb
@@ -302,7 +379,7 @@ Resources:
 
               cat << 'SVC' > /etc/systemd/system/react-webapp.service
               [Unit]
-              Description=Dockerized React Web App connected to RDS MySQL
+              Description=Dockerized React Web App connected to RDS PostgreSQL
               After=docker.service
               Requires=docker.service
 
@@ -329,6 +406,7 @@ Resources:
               systemctl start react-webapp || true
             - RDSEndpoint: !GetAtt RDSInstance.Endpoint.Address
               RDSSecretId: !Ref RDSSecret
+              WebAuthSecretId: !Ref WebAuthSecret
         TagSpecifications:
           - ResourceType: instance
             Tags:
@@ -384,7 +462,7 @@ Resources:
         Comment: !Sub '${EnvironmentName} Option 4 Web Distribution'
         Enabled: true
         HttpVersion: http2and3
-        PriceClass: PriceClass_All
+        PriceClass: PriceClass_200
         Origins:
           - Id: ALBOrigin
             DomainName: !GetAtt ApplicationLoadBalancer.DNSName
@@ -564,4 +642,3 @@ Outputs:
   OpsAlertTopicArn:
     Description: Ops Monitoring Alert SNS Topic ARN
     Value: !Ref OpsAlertTopic
-

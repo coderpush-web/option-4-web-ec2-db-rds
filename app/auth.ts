@@ -4,28 +4,20 @@ import bcrypt from 'bcrypt';
 import { z } from 'zod';
 import type { User } from '@/app/lib/definitions';
 import { authConfig } from './auth.config';
-import { users as placeholderUsers } from '@/app/lib/placeholder-data';
-import { sqlClient } from '@/app/lib/db';
+import { getSqlClient } from '@/app/lib/db';
 
 async function getUser(email: string): Promise<User | undefined> {
   try {
-    if (sqlClient) {
-      const user = await sqlClient`SELECT * FROM users WHERE email=${email}`;
+    const client = getSqlClient();
+    if (client) {
+      const user = await client`SELECT * FROM users WHERE email=${email}`;
       if (user && user.length > 0) return user[0];
     }
   } catch (error) {
-    // Database might be connecting or offline, fallback to placeholder
+    console.error('Failed to query user from database:', error);
   }
 
-  const found = placeholderUsers.find((u) => u.email === email);
-  if (found) {
-    return {
-      id: found.id,
-      name: found.name,
-      email: found.email,
-      password: await bcrypt.hash(found.password, 10),
-    };
-  }
+  // Fail closed: No fallback to placeholder users or hardcoded credentials
   return undefined;
 }
 

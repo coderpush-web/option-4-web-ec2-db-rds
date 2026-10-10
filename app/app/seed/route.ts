@@ -1,10 +1,8 @@
 import bcrypt from 'bcrypt';
-import postgres from 'postgres';
 import { invoices, customers, revenue, users } from '../lib/placeholder-data';
+import { getSqlClient } from '../lib/db';
 
-const sql = postgres(process.env.POSTGRES_URL!, { ssl: 'require' });
-
-async function seedUsers() {
+async function seedUsers(sql: any) {
   await sql`CREATE EXTENSION IF NOT EXISTS "uuid-ossp"`;
   await sql`
     CREATE TABLE IF NOT EXISTS users (
@@ -15,21 +13,23 @@ async function seedUsers() {
     );
   `;
 
-  const insertedUsers = await Promise.all(
-    users.map(async (user) => {
-      const hashedPassword = await bcrypt.hash(user.password, 10);
-      return sql`
-        INSERT INTO users (id, name, email, password)
-        VALUES (${user.id}, ${user.name}, ${user.email}, ${hashedPassword})
-        ON CONFLICT (id) DO NOTHING;
-      `;
-    }),
-  );
-
-  return insertedUsers;
+  if (users.length > 0) {
+    const insertedUsers = await Promise.all(
+      users.map(async (user: any) => {
+        const hashedPassword = await bcrypt.hash(user.password || 'Temporary2026!', 10);
+        return sql`
+          INSERT INTO users (id, name, email, password)
+          VALUES (${user.id}, ${user.name}, ${user.email}, ${hashedPassword})
+          ON CONFLICT (id) DO NOTHING;
+        `;
+      }),
+    );
+    return insertedUsers;
+  }
+  return [];
 }
 
-async function seedInvoices() {
+async function seedInvoices(sql: any) {
   await sql`CREATE EXTENSION IF NOT EXISTS "uuid-ossp"`;
 
   await sql`
@@ -55,7 +55,7 @@ async function seedInvoices() {
   return insertedInvoices;
 }
 
-async function seedCustomers() {
+async function seedCustomers(sql: any) {
   await sql`CREATE EXTENSION IF NOT EXISTS "uuid-ossp"`;
 
   await sql`
@@ -80,7 +80,7 @@ async function seedCustomers() {
   return insertedCustomers;
 }
 
-async function seedRevenue() {
+async function seedRevenue(sql: any) {
   await sql`
     CREATE TABLE IF NOT EXISTS revenue (
       month VARCHAR(4) NOT NULL UNIQUE,
@@ -109,13 +109,21 @@ export async function GET() {
     );
   }
 
+  const sql = getSqlClient();
+  if (!sql) {
+    return Response.json(
+      { message: 'Database connection not configured' },
+      { status: 503 }
+    );
+  }
+
   try {
-    const result = await sql.begin((sql) => [
-      seedUsers(),
-      seedCustomers(),
-      seedInvoices(),
-      seedRevenue(),
-    ]);
+    await sql.begin(async (sqlTx: any) => {
+      await seedUsers(sqlTx);
+      await seedCustomers(sqlTx);
+      await seedInvoices(sqlTx);
+      await seedRevenue(sqlTx);
+    });
 
     return Response.json({ message: 'Database seeded successfully' });
   } catch (error) {
