@@ -9,7 +9,13 @@ Diagram:
       Direction: vertical
       Children:
         - AWSCloud
+        - CloudflareEdge
         - User
+
+    CloudflareEdge:
+      Type: AWS::Diagram::Resource
+      Preset: Internet
+      Title: "Cloudflare Proxy (CDN/WAF)\nopt4.png261.dev (Full Strict SSL)"
 
     AWSCloud:
       Type: AWS::Diagram::Cloud
@@ -79,7 +85,7 @@ Diagram:
     ALB:
       Type: AWS::ElasticLoadBalancingV2::LoadBalancer
       Preset: Application Load Balancer
-      Title: "Application Load Balancer"
+      Title: "Application Load Balancer (HTTPS:443)"
 
     IGW:
       Type: AWS::EC2::InternetGateway
@@ -94,7 +100,7 @@ Diagram:
   Links:
     - Source: User
       SourcePosition: N
-      Target: IGW
+      Target: CloudflareEdge
       TargetPosition: S
       TargetArrowHead:
         Type: Open
@@ -102,6 +108,16 @@ Diagram:
       Labels:
         SourceLeft:
           Title: "HTTPS:443"
+    - Source: CloudflareEdge
+      SourcePosition: N
+      Target: IGW
+      TargetPosition: S
+      TargetArrowHead:
+        Type: Open
+      Type: orthogonal
+      Labels:
+        SourceLeft:
+          Title: "HTTPS:443 (Origin Pull)"
     - Source: IGW
       SourcePosition: N
       Target: ALB
