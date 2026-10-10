@@ -31,28 +31,35 @@ Diagram:
       Direction: vertical
       Children:
         - MainStack
-        - ALB
+        - PublicSubnetALB
       BorderChildren:
         - Position: S
           Resource: IGW
+
+    PublicSubnetALB:
+      Type: AWS::EC2::Subnet
+      Preset: PublicSubnet
+      Title: "Public Subnets (ALB Tier)"
+      Children:
+        - ALB
 
     MainStack:
       Type: AWS::Diagram::HorizontalStack
       Children:
         - WebASG
-        - PrivateSubnet
+        - PrivateSubnetDB
 
     WebASG:
       Type: AWS::AutoScaling::AutoScalingGroup
-      Title: "Web Auto Scaling Group"
+      Title: "Web Auto Scaling Group (Private Subnets)"
       Children:
         - WebSubnet1
         - WebSubnet2
 
     WebSubnet1:
       Type: AWS::EC2::Subnet
-      Preset: PublicSubnet
-      Title: "Public Subnet 1"
+      Preset: PrivateSubnet
+      Title: "Private Subnet 1 (App)"
       Children:
         - WebInstance1
 
@@ -62,8 +69,8 @@ Diagram:
 
     WebSubnet2:
       Type: AWS::EC2::Subnet
-      Preset: PublicSubnet
-      Title: "Public Subnet 2"
+      Preset: PrivateSubnet
+      Title: "Private Subnet 2 (App)"
       Children:
         - WebInstance2
 
@@ -71,10 +78,10 @@ Diagram:
       Type: AWS::EC2::Instance
       Title: "Web Instance 2"
 
-    PrivateSubnet:
+    PrivateSubnetDB:
       Type: AWS::EC2::Subnet
       Preset: PrivateSubnet
-      Title: "Private Subnet (RDS)"
+      Title: "Private Subnet (RDS Tier)"
       Children:
         - RDSInstance
 

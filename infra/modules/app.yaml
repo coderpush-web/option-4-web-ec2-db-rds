@@ -313,8 +313,8 @@ Resources:
       MaxSize: !Ref MaxInstances
       DesiredCapacity: !Ref DesiredInstances
       VPCZoneIdentifier:
-        - Fn::ImportValue: !Sub '${EnvironmentName}-PublicSubnetId'
-        - Fn::ImportValue: !Sub '${EnvironmentName}-PublicSubnet2Id'
+        - Fn::ImportValue: !Sub '${EnvironmentName}-PrivateSubnet1Id'
+        - Fn::ImportValue: !Sub '${EnvironmentName}-PrivateSubnet2Id'
       TargetGroupARNs:
         - !Ref ALBTargetGroup
       HealthCheckType: ELB
