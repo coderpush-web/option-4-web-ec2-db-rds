@@ -7,12 +7,10 @@
     "RDSAllocatedStorage": "50",
     "DBUser": "appadmin",
     "DBPassword": "P@ssw0rdSecure2026Prod!",
-    "DomainName": "png261.dev",
     "SubdomainName": "opt4.png261.dev",
     "MinInstances": "2",
     "MaxInstances": "6",
     "DesiredInstances": "2",
-    "CertificateArn": "arn:aws:acm:ap-southeast-1:649519997247:certificate/3565f62c-9fd6-4aec-bb6a-5182e3337479",
-    "CloudflareOriginSecret": ""
+    "CertificateArn": "arn:aws:acm:ap-southeast-1:649519997247:certificate/3565f62c-9fd6-4aec-bb6a-5182e3337479"
   }
 }

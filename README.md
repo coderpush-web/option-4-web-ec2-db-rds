@@ -31,7 +31,7 @@ Hạ tầng và Mã nguồn ứng dụng độc lập cho **Option 4: 1 EC2 Web 
 
 <!-- INFRACOST_START -->
 ### 💵 Kết quả Kiểm tra Chi phí Tự động CloudFormation (Infracost CI/CD Output)
-*Thời gian kiểm tra: Sat Oct 10 06:53:48 UTC 2026*
+*Thời gian kiểm tra: Sat Oct 10 07:07:03 UTC 2026*
 
 ```text
 No costed resources detected.
@@ -46,7 +46,7 @@ No costed resources detected.
 - **Application Load Balancer (ALB):** Nằm tại Public Subnets (Multi-AZ), cân bằng tải lưu lượng truy cập HTTP/HTTPS vào các EC2 instances trong Auto Scaling Group.
 - **Web Auto Scaling Group (ASG):** Nằm an toàn trong **Private Subnets (AZ1 & AZ2)**, tự động scale số lượng EC2 instances dựa theo ngưỡng CPU utilization (70%).
 - **AWS Managed RDS MySQL (Multi-AZ):** Cơ sở dữ liệu quan hệ được quản lý hoàn toàn nằm sâu trong **Private Subnets (AZ1 & AZ2)**, tự động sao lưu, mã hóa lưu trữ và cô lập an toàn.
-- **Cloudflare Proxy + Custom Domain:** Định tuyến người dùng qua Cloudflare CDN/WAF tới CloudFront / ALB endpoint.
+- **AWS-Native Custom Domain:** Định tuyến trực tiếp người dùng qua DNS CNAME (DNS-only) tới Amazon CloudFront Edge & ALB endpoint.
 
 ## 📸 Giao Diện Ứng Dụng Thực Tế (Live Screenshots - Dev & Prod)
 
@@ -56,7 +56,7 @@ No costed resources detected.
 
 > 🚀 **Ghi chú triển khai:**
 > - **Môi trường Dev (`opt4-dev.png261.dev`):** Chạy chế độ debug/development, Auto Scaling Min 1 - Max 2 instance.
-> - **Môi trường Prod (`opt4.png261.dev`):** Chạy chế độ production tối ưu hóa hiệu năng cao, Auto Scaling Min 2 - Max 6 instances, bảo mật nghiêm ngặt qua Cloudflare SSL/HTTPS.
+> - **Môi trường Prod (`opt4.png261.dev`):** Chạy chế độ production tối ưu hóa hiệu năng cao, Auto Scaling Min 2 - Max 6 instances, bảo mật chuẩn AWS ACM SSL/HTTPS.
 
 
 ## ⚛️ Ứng Dụng React & Quy Trình Đóng Gói Docker / Amazon ECR
@@ -88,15 +88,15 @@ Quy trình tuân thủ nghiêm ngặt chuẩn DevOps hiện đại:
 
 Hạ tầng hỗ trợ ánh xạ tên miền `png261.dev` cho cả môi trường Development và Production:
 
-| Môi trường | Nhánh Git | Subdomain | Loại bản ghi DNS | Giá trị đích (Target) | Proxy Cloudflare |
+| Môi trường | Nhánh Git | Subdomain | Loại bản ghi DNS | Giá trị đích (Target) | Chế độ Proxy |
 | :--- | :--- | :--- | :---: | :--- | :--- |
-| **Development** | `dev` | `opt4-dev.png261.dev` | `CNAME` | `${CloudFrontDistribution.DomainName}` / ALB DNS | Bật (Proxied ☁️) |
-| **Production** | `main` | `opt4.png261.dev` | `CNAME` | `${CloudFrontDistribution.DomainName}` / ALB DNS | Bật (Proxied ☁️) |
+| **Development** | `dev` | `opt4-dev.png261.dev` | `CNAME` | `${CloudFrontDistribution.DomainName}` | DNS Only (☁️ Tắt / Grey) |
+| **Production** | `main` | `opt4.png261.dev` | `CNAME` | `${CloudFrontDistribution.DomainName}` | DNS Only (☁️ Tắt / Grey) |
 
-> 💡 **Khuyến nghị SSL/HTTPS qua Cloudflare:**
-> Do tên miền `png261.dev` được quản trị Nameserver tại Cloudflare, khi tạo bản ghi `CNAME` với trạng thái **Proxied (Đám mây màu cam ☁️)**:
-> - Cloudflare sẽ tự động cấp chứng chỉ **Universal SSL/TLS miễn phí** (HTTPS xanh).
-> - Tự động kích hoạt CDN caching và bảo vệ chống tấn công DDoS Lớp 7.
+> 💡 **Cấu hình DNS Chuẩn AWS-Native:**
+> Tên miền `png261.dev` được cấu hình bản ghi `CNAME` ở chế độ **DNS Only (Grey cloud ☁️)** trỏ trực tiếp đến Amazon CloudFront Distribution.
+> - Toàn bộ lưu lượng truy cập được phục vụ và cache trực tiếp bởi mạng lưới AWS Edge Locations toàn cầu.
+> - Kết nối bảo mật HTTPS đầu-cuối qua AWS ACM Certificate trên Application Load Balancer và CloudFront.
 
 ## ☁️ Quản Lý Hạ Tầng Native CloudFormation (No State File)
 Hạ tầng sử dụng 100% **AWS CloudFormation Native**:
