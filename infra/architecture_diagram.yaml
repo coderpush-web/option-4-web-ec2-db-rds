@@ -30,11 +30,16 @@ Diagram:
 
     AWSCloud:
       Type: AWS::Diagram::Cloud
-      Direction: vertical
+      Direction: horizontal
       Preset: AWSCloudNoLogo
       Align: center
       Children:
         - VPC
+        - ECR
+
+    ECR:
+      Type: AWS::ECR
+      Title: "Amazon ECR\n(App Image Repository)"
 
     VPC:
       Type: AWS::EC2::VPC
@@ -194,3 +199,13 @@ Diagram:
       Labels:
         SourceLeft:
           Title: "Egress"
+    - Source: NATGW
+      SourcePosition: E
+      Target: ECR
+      TargetPosition: W
+      TargetArrowHead:
+        Type: Open
+      Type: orthogonal
+      Labels:
+        SourceRight:
+          Title: "Pull Image"
