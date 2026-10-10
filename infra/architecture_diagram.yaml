@@ -1,0 +1,142 @@
+Diagram:
+  DefinitionFiles:
+    - Type: URL
+      Url: "https://raw.githubusercontent.com/awslabs/diagram-as-code/main/definitions/definition-for-aws-icons-light.yaml"
+
+  Resources:
+    Canvas:
+      Type: AWS::Diagram::Canvas
+      Direction: vertical
+      Children:
+        - AWSCloud
+        - User
+
+    AWSCloud:
+      Type: AWS::Diagram::Cloud
+      Direction: vertical
+      Preset: AWSCloudNoLogo
+      Align: center
+      Children:
+        - VPC
+
+    VPC:
+      Type: AWS::EC2::VPC
+      Title: "VPC (10.0.0.0/16)"
+      Direction: vertical
+      Children:
+        - MainStack
+        - ALB
+      BorderChildren:
+        - Position: S
+          Resource: IGW
+
+    MainStack:
+      Type: AWS::Diagram::HorizontalStack
+      Children:
+        - WebASG
+        - PrivateSubnet
+
+    WebASG:
+      Type: AWS::AutoScaling::AutoScalingGroup
+      Title: "Web Auto Scaling Group"
+      Children:
+        - WebSubnet1
+        - WebSubnet2
+
+    WebSubnet1:
+      Type: AWS::EC2::Subnet
+      Preset: PublicSubnet
+      Title: "Public Subnet 1"
+      Children:
+        - WebInstance1
+
+    WebInstance1:
+      Type: AWS::EC2::Instance
+      Title: "Web Instance 1"
+
+    WebSubnet2:
+      Type: AWS::EC2::Subnet
+      Preset: PublicSubnet
+      Title: "Public Subnet 2"
+      Children:
+        - WebInstance2
+
+    WebInstance2:
+      Type: AWS::EC2::Instance
+      Title: "Web Instance 2"
+
+    PrivateSubnet:
+      Type: AWS::EC2::Subnet
+      Preset: PrivateSubnet
+      Title: "Private Subnet (RDS)"
+      Children:
+        - RDSInstance
+
+    RDSInstance:
+      Type: AWS::RDS::DBInstance
+      Title: "RDS MySQL (Multi-AZ)"
+
+    ALB:
+      Type: AWS::ElasticLoadBalancingV2::LoadBalancer
+      Preset: Application Load Balancer
+      Title: "Application Load Balancer"
+
+    IGW:
+      Type: AWS::EC2::InternetGateway
+      IconFill:
+        Type: rect
+
+    User:
+      Type: AWS::Diagram::Resource
+      Preset: User
+      Title: "User"
+
+  Links:
+    - Source: User
+      SourcePosition: N
+      Target: IGW
+      TargetPosition: S
+      TargetArrowHead:
+        Type: Open
+      Type: orthogonal
+      Labels:
+        SourceLeft:
+          Title: "HTTPS:443"
+    - Source: IGW
+      SourcePosition: N
+      Target: ALB
+      TargetPosition: S
+      TargetArrowHead:
+        Type: Open
+      Type: orthogonal
+    - Source: ALB
+      SourcePosition: NW
+      Target: WebInstance1
+      TargetPosition: S
+      TargetArrowHead:
+        Type: Open
+      Type: orthogonal
+    - Source: ALB
+      SourcePosition: NE
+      Target: WebInstance2
+      TargetPosition: S
+      TargetArrowHead:
+        Type: Open
+      Type: orthogonal
+    - Source: WebInstance1
+      SourcePosition: E
+      Target: RDSInstance
+      TargetPosition: W
+      TargetArrowHead:
+        Type: Open
+      Type: orthogonal
+      Labels:
+        SourceRight:
+          Title: "Port 3306"
+    - Source: WebInstance2
+      SourcePosition: E
+      Target: RDSInstance
+      TargetPosition: W
+      TargetArrowHead:
+        Type: Open
+      Type: orthogonal
