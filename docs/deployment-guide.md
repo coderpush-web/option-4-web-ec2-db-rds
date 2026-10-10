@@ -110,17 +110,26 @@ docker push "${ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com/${REPO_NAME}:${IM
 cd ..
 ```
 
-### Step 2: Run Deployment Script
+### Step 2: Execute Infrastructure Deployment Stacks via AWS CLI
+
+Deployments are automated via GitHub Actions (`deploy.yml`). If performing manual deployment via AWS CLI:
 
 ```bash
 cd infra
-chmod +x deploy.sh
+export ENV="dev" # or prod
+export IMAGE_TAG="dev-latest" # or latest
 
-# Deploy to Development
-./deploy.sh dev dev-latest
+# 1. Network Stack
+aws cloudformation deploy --template-file modules/vpc-subnets.yaml --stack-name "${ENV}-network" --parameter-overrides EnvironmentName="$ENV" --region "$AWS_REGION"
 
-# Deploy to Production
-./deploy.sh prod latest
+# 2. Security Groups Stack
+aws cloudformation deploy --template-file modules/security-groups.yaml --stack-name "${ENV}-security-groups" --parameter-overrides EnvironmentName="$ENV" --region "$AWS_REGION"
+
+# 3. IAM Roles Stack
+aws cloudformation deploy --template-file modules/iam-roles.yaml --stack-name "${ENV}-iam" --parameter-overrides EnvironmentName="$ENV" --capabilities CAPABILITY_IAM --region "$AWS_REGION"
+
+# 4. Application Compute Stack
+aws cloudformation deploy --template-file modules/app.yaml --stack-name "${ENV}-app" --parameter-overrides EnvironmentName="$ENV" ImageTag="$IMAGE_TAG" --capabilities CAPABILITY_IAM --region "$AWS_REGION"
 ```
 
 The script provisions:
