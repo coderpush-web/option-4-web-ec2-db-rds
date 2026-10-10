@@ -1,22 +1,22 @@
 # Infrastructure Modules - option-4-web-ec2-db-rds
 
-Thư mục này chứa đầy đủ các module CloudFormation độc lập, hỗ trợ cả hai môi trường **Development (dev)** và **Production (prod)**.
+This directory contains standalone AWS CloudFormation modules supporting both **Development (`dev`)** and **Production (`prod`)** environments.
 
-## 1. Cấu trúc Modules
-- `modules/vpc-subnets.yaml`: Khởi tạo VPC, Internet Gateway, 1 Public Subnet (Web) và 2 Private Subnets (Multi-AZ).
-- `modules/security-groups.yaml`: Quản lý Security Group cho Web (port 80/443) và DB (port 3306).
-- `modules/iam-roles.yaml`: IAM Instance Profile cho AWS SSM Session Manager.
-- `modules/app.yaml`: Khởi tạo tài nguyên tính toán (EC2 / RDS) tùy biến theo biến môi trường.
+## 1. Module Structure
+- `modules/vpc-subnets.yaml`: Provisions VPC, Internet Gateway, 2 Public Subnets (ALB), and 2 Private Subnets (Web ASG and RDS DB Subnet Group across Multi-AZ).
+- `modules/security-groups.yaml`: Manages Security Groups for ALB, Web Tier, and RDS MySQL (inbound port 3306 restricted strictly to Web SG).
+- `modules/iam-roles.yaml`: Configures EC2 IAM Instance Profile with AWS SSM Session Manager and Amazon ECR ReadOnly access.
+- `modules/app.yaml`: Provisions enterprise compute & managed database resources (Web ASG, AWS Managed RDS MySQL 8.0 instance, ALB, CloudFront Distribution).
 
-## 2. Quản lý Môi trường (Environments)
-- `environments/dev.json`: Cấu hình tiết kiệm tối đa cho Dev (EC2/RDS micro, dung lượng ổ đĩa nhỏ).
-- `environments/prod.json`: Cấu hình chuẩn High-Availability & Performance cho Production (Reserved/Savings Plans, 4GB RAM / RDS Graviton).
+## 2. Environment Configuration
+- `environments/dev.json`: Cost-optimized parameters for Development (t3.micro Web, db.t3.micro RDS, single AZ).
+- `environments/prod.json`: High-availability & performance configuration for Production (t3.small/medium Web, Graviton db.t4g.small RDS, Multi-AZ automatic failover).
 
-## 3. Cách triển khai (One-click Deployment)
+## 3. Deployment Commands
 ```bash
-# Triển khai môi trường Dev:
+# Deploy to Development:
 ./deploy.sh dev
 
-# Triển khai môi trường Production:
+# Deploy to Production:
 ./deploy.sh prod
 ```
