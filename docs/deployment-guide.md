@@ -1,0 +1,173 @@
+# Deployment Guide - Option 4: Web ASG EC2 + Managed RDS MySQL (Recommended)
+
+This guide provides end-to-end instructions for deploying the production-grade AWS CloudFormation infrastructure and containerized web application for **Option 4: 1 EC2 Web ASG + 1 AWS Managed RDS Database**.
+
+---
+
+## 1. Prerequisites
+
+Ensure the following tools and permissions are set up:
+
+- **AWS CLI v2**: Configured with credentials possessing administrative permissions across CloudFormation, EC2, VPC, ELBv2, Auto Scaling, RDS, CloudFront, ECR, SSM, and CloudWatch.
+- **Docker Engine**: Docker 24.x+ or Docker Desktop.
+- **Node.js**: Node.js 20.x LTS or higher.
+- **Python 3**: Python 3.10+ (for environment parameter parsing).
+- **cfn-lint** *(optional)*: For CloudFormation template linting (`pip install cfn-lint`).
+
+---
+
+## 2. Infrastructure Code Structure
+
+All CloudFormation files reside under `infra/`:
+
+```text
+infra/
+├── cloudformation.yaml      # Consolidated CloudFormation template
+├── deploy.sh                # Multi-stack deployment script
+├── environments/
+│   ├── dev.json             # Environment parameters for Development
+│   └── prod.json            # Environment parameters for Production
+└── modules/
+    ├── vpc-subnets.yaml     # Module 1: VPC, IGW, Public Subnets (2 AZs), Private Subnets (2 AZs)
+    ├── security-groups.yaml # Module 2: Security Groups (ALB, Web Tier, and RDS DB Subnet)
+    ├── iam-roles.yaml       # Module 3: EC2 IAM Role & Instance Profile (SSM, ECR ReadOnly)
+    └── app.yaml             # Module 4: ALB, Web ASG, AWS RDS MySQL Instance, CloudFront
+```
+
+---
+
+## 3. Environment Parameter Configuration
+
+Configuration files are located in `infra/environments/dev.json` and `infra/environments/prod.json`.
+
+| Parameter | Dev Value | Prod Value | Description |
+| :--- | :--- | :--- | :--- |
+| `EnvironmentName` | `dev` | `prod` | Prefix for resource naming and tagging |
+| `InstanceType` | `t3.micro` | `t3.small` / `t3.medium` | EC2 instance sizing for Web ASG |
+| `DBInstanceClass` | `db.t3.micro` | `db.t4g.small` (Graviton2) | RDS DB instance class |
+| `DBMultiAZ` | `false` | `true` | Multi-AZ high availability failover |
+| `DBAllocatedStorage`| `20` | `50` | Initial RDS storage in GB (gp3 encrypted) |
+| `MinInstances` | `1` | `2` | Minimum Web instances in ASG |
+| `MaxInstances` | `2` | `6` | Maximum Web instances in ASG |
+| `DesiredInstances` | `1` | `2` | Initial Web instance target count |
+| `WebVolumeSize` | `20` | `30` | Root EBS volume size for Web instances (GB) |
+| `DBPassword` | *(secure)* | *(secure)* | Master administrator password for RDS MySQL |
+| `LogRetentionDays` | `14` | `30` | CloudWatch log retention period in days |
+
+---
+
+## 4. Automated Deployment via GitHub Actions (CI/CD)
+
+The CI/CD pipeline is configured in `.github/workflows/ci-cd.yml`.
+
+### Required GitHub Repository Secrets:
+Under **Settings** -> **Secrets and variables** -> **Actions**:
+- `AWS_ACCESS_KEY_ID`: IAM user/role access key.
+- `AWS_SECRET_ACCESS_KEY`: IAM user/role secret access key.
+- `AWS_REGION`: AWS Region (default: `ap-southeast-1`).
+- `INFRACOST_API_KEY`: *(Optional)* Infracost API key.
+
+### Automated Workflow Pipeline:
+1. **Application Testing & CloudFormation Linting:**
+   - Validates Next.js code and runs automated API tests.
+   - Lints infrastructure templates using `cfn-lint`.
+2. **Container Delivery to Amazon ECR:**
+   - Builds multi-stage Docker image for Next.js.
+   - Pushes image with tag `dev-latest` (on `dev` branch) or `latest` (on `main` branch).
+3. **Infrastructure Stacks Deployment:**
+   - Runs `./deploy.sh prod latest` on merge to `main`.
+4. **Zero-Downtime Instance Refresh:**
+   - Triggers `aws autoscaling start-instance-refresh` to update Web instances progressively while the managed RDS database runs uninterrupted.
+
+---
+
+## 5. Manual Deployment via AWS CLI & `deploy.sh`
+
+### Step 1: Build and Push Docker Image to ECR
+
+```bash
+# Set configuration variables
+export AWS_REGION="ap-southeast-1"
+export ENV="dev" # or prod
+export ACCOUNT_ID=$(aws sts get-caller-identity --query Account --output text)
+export REPO_NAME="${ENV}-option-4-web-app"
+export IMAGE_TAG="dev-latest" # or latest for prod
+
+# Create ECR repository if needed
+aws ecr describe-repositories --repository-names "$REPO_NAME" --region "$AWS_REGION" 2>/dev/null || \
+aws ecr create-repository --repository-name "$REPO_NAME" --region "$AWS_REGION"
+
+# Log in to ECR
+aws ecr get-login-password --region "$AWS_REGION" | \
+docker login --username AWS --password-stdin "${ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com"
+
+# Build and push container image
+cd app
+docker build -t "$REPO_NAME:$IMAGE_TAG" .
+docker tag "$REPO_NAME:$IMAGE_TAG" "${ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com/${REPO_NAME}:${IMAGE_TAG}"
+docker push "${ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com/${REPO_NAME}:${IMAGE_TAG}"
+cd ..
+```
+
+### Step 2: Run Deployment Script
+
+```bash
+cd infra
+chmod +x deploy.sh
+
+# Deploy to Development
+./deploy.sh dev dev-latest
+
+# Deploy to Production
+./deploy.sh prod latest
+```
+
+The script provisions:
+1. `${ENV}-network`: Provisions VPC and Multi-AZ subnets.
+2. `${ENV}-security-groups`: Creates ALB SG, Web SG, and RDS DB SG (port 3306 restricted to Web SG).
+3. `${ENV}-iam`: Configures EC2 Instance Profile with SSM and ECR read-only roles.
+4. `${ENV}-app`: Provisions the AWS Managed RDS MySQL database in the Private DB Subnet Group, launches the Web Auto Scaling Group, ALB, and CloudFront CDN distribution.
+5. Displays stack outputs including database endpoint and CloudFront URL.
+
+---
+
+## 6. Custom Domain & DNS Mapping
+
+Obtain the CloudFront domain name from the stack outputs:
+
+```bash
+aws cloudformation describe-stacks \
+  --stack-name dev-app \
+  --query "Stacks[0].Outputs[?OutputKey=='CloudFrontDomain'].OutputValue" \
+  --output text
+```
+
+In your DNS manager:
+- **Record Type:** `CNAME`
+- **Host:** `opt4-dev` (or `opt4` for Prod)
+- **Target:** `<distribution-id>.cloudfront.net`
+- **Proxy Status:** **DNS Only (Grey Cloud ☁️)**
+
+---
+
+## 7. Infrastructure Teardown & Resource Cleanup
+
+To delete all resources cleanly:
+
+```bash
+ENV="dev" # or prod
+
+aws cloudformation delete-stack --stack-name "${ENV}-app"
+aws cloudformation wait stack-delete-complete --stack-name "${ENV}-app"
+
+aws cloudformation delete-stack --stack-name "${ENV}-iam"
+aws cloudformation wait stack-delete-complete --stack-name "${ENV}-iam"
+
+aws cloudformation delete-stack --stack-name "${ENV}-security-groups"
+aws cloudformation wait stack-delete-complete --stack-name "${ENV}-security-groups"
+
+aws cloudformation delete-stack --stack-name "${ENV}-network"
+aws cloudformation wait stack-delete-complete --stack-name "${ENV}-network"
+
+echo "✅ Teardown complete for environment: $ENV"
+```

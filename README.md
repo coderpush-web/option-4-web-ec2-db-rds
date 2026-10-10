@@ -1,105 +1,155 @@
-# Option 4: 1 EC2 Web + 1 Managed RDS Database (Recommended)
+# Option 4: 1 EC2 Web ASG + 1 AWS Managed RDS Database (Recommended)
 
-Hạ tầng và Mã nguồn ứng dụng độc lập cho **Option 4: 1 EC2 Web + 1 Managed RDS Database (Recommended)**.
+Independent infrastructure and application source code for **Option 4: 1 EC2 Web ASG + 1 AWS Managed RDS Database (Recommended Architecture)**.
 
-## 1. Cấu trúc thư mục (File Structure)
+## 1. Directory Structure (File Structure)
 ```text
 .
 ├── .github/workflows/ci-cd.yml   # CI/CD Pipeline (test code, lint CloudFormation, auto-deploy)
-├── app/                          # Mã nguồn Website độc lập (Node.js/Express)
-├── infra/                        # Mã nguồn CloudFormation hạ tầng AWS
-│   ├── cloudformation.yaml       # Template CloudFormation độc lập
-│   └── architecture_diagram.png  # Sơ đồ kiến trúc Diagram-as-Code
-├── test/                         # Kiểm thử tự động (Unit test API & app)
+├── app/                          # Standalone web application (Next.js / Node.js)
+├── docs/                         # Technical documentation (Deployment, Operations, Architecture)
+├── infra/                        # AWS CloudFormation Infrastructure-as-Code
+│   ├── cloudformation.yaml       # Consolidated CloudFormation template
+│   ├── modules/                  # Modular templates (app.yaml, vpc-subnets.yaml, etc.)
+│   ├── environments/             # Environment parameters for dev & prod
+│   └── architecture_diagram.png  # Diagram-as-Code architecture diagram
+├── test/                         # Automated tests (Unit test & API integration tests)
 │   └── test_api.js
-└── README.md                     # Báo cáo kỹ thuật và ma trận chi phí
+└── README.md                     # Technical report, cost matrix, and architectural summary
 ```
 
-## 2. Báo cáo Chi phí Đa Chiều (Multi-Dimension Cost Analysis)
+## 2. Multi-Dimension Cost Analysis
 
-### A. Chi phí theo Mô hình Mua & Tối ưu hóa (Region Singapore)
-| Mô hình thanh toán | Web Compute (EC2) | RDS Managed (MySQL) | Storage, IP & Backup | Tổng chi phí / tháng | Quy đổi VNĐ |
+### A. Cost by Purchasing Option & Optimization (Singapore Region: `ap-southeast-1`)
+| Purchasing Model | Web Compute (EC2) | RDS Managed (MySQL) | Storage, IP & Backup | Total Monthly Cost | Approx. Local Currency (VND) |
 | :--- | :--- | :--- | :--- | :--- | :--- |
-| **On-Demand (Mặc định)** | $15.18 | $23.36 (`db.t4g.small`) | $9.10 | **$47.64 / tháng** | ~1.203.000 VNĐ |
-| **1-Year Savings Plan / RI** | $9.56 | $16.82 | $9.10 | **$35.48 / tháng** *(Giảm 25%)* | ~895.000 VNĐ |
-| **3-Year Savings Plan / RI** | $6.06 | $11.92 | $9.10 | **$27.08 / tháng** *(Giảm 43%)* | ~684.000 VNĐ |
-| **Tiết kiệm (Dùng db.t3.micro)** | $15.18 | $20.00 | $9.10 | **$44.28 / tháng** | ~1.118.000 VNĐ |
+| **On-Demand (Default)** | $15.18 | $23.36 (`db.t4g.small`) | $9.10 | **$47.64 / mo** | ~1,203,000 VND |
+| **1-Year Savings Plan / RI** | $9.56 | $16.82 | $9.10 | **$35.48 / mo** *(25% savings)* | ~895,000 VND |
+| **3-Year Savings Plan / RI** | $6.06 | $11.92 | $9.10 | **$27.08 / mo** *(43% savings)* | ~684,000 VND |
+| **Cost Saver (Using db.t3.micro)** | $15.18 | $20.00 | $9.10 | **$44.28 / mo** | ~1,118,000 VND |
 
-### B. So sánh theo Vùng địa lý (Region Comparison)
-- **Singapore (`ap-southeast-1`):** $47.64 / tháng (Độ trễ thấp nhất cho thị trường VN: ~30ms).
-- **US East (`us-east-1`):** $42.15 / tháng (Rẻ hơn 11.5% do giá compute & RDS tại Mỹ thấp hơn).
+### B. Cross-Region Cost Comparison
+- **Singapore (`ap-southeast-1`):** $47.64 / month (Lowest latency to Southeast Asia & Vietnam: ~30ms).
+- **US East (`us-east-1`):** $42.15 / month (11.5% cheaper due to lower baseline compute and RDS rates in US regions).
 
 <!-- INFRACOST_START -->
-### 💵 Kết quả Kiểm tra Chi phí Tự động CloudFormation (Infracost CI/CD Output)
-*Thời gian kiểm tra: Sat Oct 10 09:30:55 UTC 2026*
+### 💵 Automated CloudFormation Cost Scan (Infracost CI/CD Output)
+*Scan timestamp: Sat Oct 10 09:30:55 UTC 2026*
 
 ```text
 No costed resources detected.
 ```
 <!-- INFRACOST_END -->
 
-### 3. Kiến trúc Hạ tầng (Architecture Diagram)
+## 3. Architecture Overview
 ![Architecture](infra/architecture_diagram.png)
 
-### Điểm nổi bật của kiến trúc:
-- **CloudFront CDN Edge Caching:** Caching tối ưu cho static assets (`/_next/static/*`, `/static/*`), giảm tải 80-90% lượng request vào cụm máy chủ gốc, cải thiện TTFB và tăng tốc độ tải trang toàn cầu.
-- **Application Load Balancer (ALB):** Nằm tại Public Subnets (Multi-AZ), cân bằng tải lưu lượng truy cập HTTP/HTTPS vào các EC2 instances trong Auto Scaling Group.
-- **Web Auto Scaling Group (ASG):** Nằm an toàn trong **Private Subnets (AZ1 & AZ2)**, tự động scale số lượng EC2 instances dựa theo ngưỡng CPU utilization (70%).
-- **AWS Managed RDS MySQL (Multi-AZ):** Cơ sở dữ liệu quan hệ được quản lý hoàn toàn nằm sâu trong **Private Subnets (AZ1 & AZ2)**, tự động sao lưu, mã hóa lưu trữ và cô lập an toàn.
-- **AWS-Native Custom Domain:** Định tuyến trực tiếp người dùng qua DNS CNAME (DNS-only) tới Amazon CloudFront Edge & ALB endpoint.
+```mermaid
+flowchart TD
+    subgraph Client ["Client Access"]
+        Users["Users / Browsers"]
+        Domain["Custom Domain (opt4.png261.dev)"]
+    end
 
-## 📸 Giao Diện Ứng Dụng Thực Tế (Live Screenshots - Dev & Prod)
+    subgraph Edge ["Edge Layer"]
+        CF["Amazon CloudFront CDN (Cache Static /_next/*)"]
+    end
 
-| Môi trường Development (`opt4-dev.png261.dev`) | Môi trường Production (`opt4.png261.dev`) |
+    subgraph AWS_VPC ["AWS VPC (ap-southeast-1)"]
+        subgraph Public_Subnets ["Public Subnets (AZ1 & AZ2)"]
+            ALB["Application Load Balancer (ALB)"]
+            TG["Target Group (Healthcheck: /api/health)"]
+        end
+
+        subgraph Private_Subnets ["Private Subnets (AZ1 & AZ2)"]
+            subgraph ASG ["Web Auto Scaling Group (Min: 1-2, Max: 4-6)"]
+                EC2_1["Web Instance 1<br/>Docker Next.js (Port 80)"]
+                EC2_2["Web Instance 2<br/>Docker Next.js (Port 80)"]
+            end
+
+            subgraph DB_Tier ["Database Tier (Private Subnets Multi-AZ)"]
+                RDS["AWS Managed RDS MySQL 8.0<br/>(Multi-AZ in Prod, Encrypted GP3)"]
+            end
+        end
+    end
+
+    subgraph Management ["Security, Observability & Deployment"]
+        SM["AWS Secrets Manager<br/>(Dynamic DB Credentials)"]
+        CW_Logs["CloudWatch LogGroup<br/>(14d Dev / 30d Prod)"]
+        CW_Alarms["CloudWatch Alarms<br/>(ALB 5XX + Web CPU + RDS Storage + RDS CPU)"]
+        SNS["SNS OpsAlertTopic"]
+        Email["Ops Alert Email"]
+        ECR["Amazon ECR Repository"]
+        CI_CD["GitHub Actions CI/CD<br/>(Zero-Downtime Instance Refresh)"]
+    end
+
+    Users --> Domain --> CF
+    CF -->|Dynamic requests| ALB
+    ALB --> TG --> ASG
+    ASG -->|SQL Queries (Port 3306)| RDS
+    ASG -.->|Resolve Secret| SM
+    SM -.->|Manage Master Creds| RDS
+    ASG -.->|Logs| CW_Logs
+    ASG -.->|Metrics| CW_Alarms
+    RDS -.->|Metrics| CW_Alarms
+    ALB -.->|Metrics| CW_Alarms
+    CW_Alarms --> SNS --> Email
+    CI_CD -->|Push Docker Image| ECR
+    CI_CD -->|Trigger Instance Refresh| ASG
+```
+
+### Key Architectural Highlights:
+- **CloudFront CDN Edge Caching:** Caches static assets (`/_next/static/*`, `/static/*`) globally, offloading 80–90% of requests from origin servers, lowering TTFB, and accelerating global page load times.
+- **Application Load Balancer (ALB):** Spans Multi-AZ Public Subnets, balancing incoming HTTP/HTTPS traffic with automated health probes on `/api/health`.
+- **Web Auto Scaling Group (ASG):** Resides securely within **Private Subnets (AZ1 & AZ2)**, automatically scaling EC2 instances based on CPU utilization (70% target tracking).
+- **AWS Managed RDS MySQL (Multi-AZ):** Fully managed relational database located deep within **Private Subnets (AZ1 & AZ2)** with automated daily backups, storage encryption, and automated Multi-AZ failover.
+- **AWS Secrets Manager Integration:** Zero hardcoded plaintext database passwords; credentials securely rotated and dynamically supplied to compute tiers.
+- **Zero-Downtime Rolling Update:** Integrated `aws autoscaling start-instance-refresh` in CI/CD updates container versions progressively without service downtime.
+- **Multi-Tier Monitoring & Alerts:** CloudWatch Alarms (ALB 5XX, Web CPU, RDS Storage, RDS CPU) notify via Amazon SNS Topic; log retention auto-expires after 14 days (Dev) / 30 days (Prod).
+- **AWS-Native Custom Domain:** Directs user traffic via DNS CNAME (DNS-only) directly to Amazon CloudFront Edge & ALB endpoints.
+
+## 📸 Application Screenshots (Live Environments: Dev & Prod)
+
+| Development Environment (`opt4-dev.png261.dev`) | Production Environment (`opt4.png261.dev`) |
 | :---: | :---: |
 | ![Development Environment](screenshots/dev_screenshot.png) | ![Production Environment](screenshots/prod_screenshot.png) |
 
-> 🚀 **Ghi chú triển khai:**
-> - **Môi trường Dev (`opt4-dev.png261.dev`):** Chạy chế độ debug/development, Auto Scaling Min 1 - Max 2 instance.
-> - **Môi trường Prod (`opt4.png261.dev`):** Chạy chế độ production tối ưu hóa hiệu năng cao, Auto Scaling Min 2 - Max 6 instances, bảo mật chuẩn AWS ACM SSL/HTTPS.
+> 🚀 **Deployment Notes:**
+> - **Development (`opt4-dev.png261.dev`):** Debug configuration, Web Auto Scaling Min 1 - Max 2 instances, single-AZ RDS.
+> - **Production (`opt4.png261.dev`):** Production optimized, Web Auto Scaling Min 2 - Max 6 instances, Multi-AZ RDS MySQL with automated failover and AWS ACM SSL/HTTPS.
 
+## ⚛️ Web Application & Docker / Amazon ECR Delivery
 
-## ⚛️ Ứng Dụng React & Quy Trình Đóng Gói Docker / Amazon ECR
+### 1. Web Application Architecture
+- **Application:** Next.js Dashboard & Management Platform.
+- **Frontend Stack:** React 18, Next.js App Router, Tailwind CSS, Lucide Icons.
+- **Backend & API:** Node.js Next.js Server Components and REST routes.
+- **Database:** AWS Managed RDS MySQL 8.0 Multi-AZ in Private Subnet Group.
 
-### 1. Kiến trúc Ứng dụng Web
-- **Tên ứng dụng:** **AuroraStore Enterprise Commerce Platform**
-- **Mô tả:** Hệ thống thương mại dịch vụ Cloud & DevOps Enterprise kết nối trực tiếp với AWS Managed RDS MySQL 8.0 trong Private Subnets trải dài 2 Availability Zones, hỗ trợ sao lưu tự động và PITR.
-- **Công nghệ Frontend:** React 18, Vite, Lucide Icons, Modern CSS Grid & Flexbox.
-- **Backend & API:** Node.js Express phục vụ REST API và Single Page Application (SPA).
-- **Cơ sở dữ liệu:** AWS Managed RDS MySQL 8.0 Multi-AZ trong Private Subnets.
+### 2. Separation of Build and Deployment (Build Once, Deploy Everywhere)
+1. **Multi-Stage Docker Build:**
+   - **Stage 1 (Builder):** Compiles Next.js frontend code and assets.
+   - **Stage 2 (Runner):** Lightweight `node:20-alpine` base image containing only required production runtime files.
+2. **Push to Amazon ECR:**
+   - Image tagged by environment (`latest` for Prod, `dev-latest` for Dev) and pushed to **Amazon Elastic Container Registry (ECR)**.
+3. **Decoupled Deployment:**
+   - EC2 instances do not compile code on-box. They pull verified containers from ECR and manage service lifecycles via `systemd`.
 
-### 2. Tách biệt hoàn toàn Bước Build và Triển khai (Build once, Deploy everywhere)
-Quy trình tuân thủ nghiêm ngặt chuẩn DevOps hiện đại:
-1. **Multi-stage Docker Build:**
-   - **Stage 1 (Builder):** Cài đặt `devDependencies`, biên dịch mã nguồn React và assets qua Vite (`npm run build`) tạo thư mục `dist/`.
-   - **Stage 2 (Runner):** Chỉ sử dụng base image `node:20-alpine` tối giản, chỉ cài đặt production dependencies và nạp thư mục `dist/` cùng `server.js`. Image có kích thước siêu gọn (~150MB) và bảo mật cao.
-2. **Đẩy Image lên Amazon ECR:**
-   - Image sau khi build được tag theo môi trường (`latest` cho Prod, `dev-latest` cho Dev) và đẩy trực tiếp lên **Amazon Elastic Container Registry (ECR)**.
-3. **Triển khai độc lập:**
-   - Hạ tầng EC2 khi khởi tạo qua CloudFormation sẽ không tự build lại mã nguồn trên máy chủ.
-   - Thay vào đó, máy chủ EC2 chỉ việc xác thực với ECR, kéo Docker image đã được kiểm thử về và chạy bằng `systemd` / `docker run`.
+## 4. CI/CD Workflow & Branching Strategy
+- **`dev`**: Main development branch. Automatically runs unit tests, lints CloudFormation, and pushes dev container images.
+- **`main`**: Protected production branch (**Branch Protection Rules** enforce PR reviews). Merging triggers automated production deployment and Web ASG rolling instance refresh.
 
-## 4. Quy trình CI/CD & Branching Strategy
-- **dev**: Nhánh phát triển chính. Tự động chạy kiểm thử khi push/PR.
-- **main**: Nhánh Production được bảo vệ (**Branch Protection Rule**). Chỉ cho phép merge từ nhánh **dev**.
+## 🌐 Custom Domain Configuration (`png261.dev`)
 
+The infrastructure routes traffic for `png261.dev` across both environments:
 
-## 🌐 Cấu Hình Tên Miền Tùy Chỉnh (Custom Domain: `png261.dev`)
-
-Hạ tầng hỗ trợ ánh xạ tên miền `png261.dev` cho cả môi trường Development và Production:
-
-| Môi trường | Nhánh Git | Subdomain | Loại bản ghi DNS | Giá trị đích (Target) | Chế độ Proxy |
+| Environment | Git Branch | Subdomain | Record Type | Target Destination | Proxy Status |
 | :--- | :--- | :--- | :---: | :--- | :--- |
-| **Development** | `dev` | `opt4-dev.png261.dev` | `CNAME` | `${CloudFrontDistribution.DomainName}` | DNS Only (☁️ Tắt / Grey) |
-| **Production** | `main` | `opt4.png261.dev` | `CNAME` | `${CloudFrontDistribution.DomainName}` | DNS Only (☁️ Tắt / Grey) |
+| **Development** | `dev` | `opt4-dev.png261.dev` | `CNAME` | `${CloudFrontDistribution.DomainName}` | DNS Only (☁️ Grey Cloud) |
+| **Production** | `main` | `opt4.png261.dev` | `CNAME` | `${CloudFrontDistribution.DomainName}` | DNS Only (☁️ Grey Cloud) |
 
-> 💡 **Cấu hình DNS Chuẩn AWS-Native:**
-> Tên miền `png261.dev` được cấu hình bản ghi `CNAME` ở chế độ **DNS Only (Grey cloud ☁️)** trỏ trực tiếp đến Amazon CloudFront Distribution.
-> - Toàn bộ lưu lượng truy cập được phục vụ và cache trực tiếp bởi mạng lưới AWS Edge Locations toàn cầu.
-> - Kết nối bảo mật HTTPS đầu-cuối qua AWS ACM Certificate trên Application Load Balancer và CloudFront.
-
-## ☁️ Quản Lý Hạ Tầng Native CloudFormation (No State File)
-Hạ tầng sử dụng 100% **AWS CloudFormation Native**:
-- **State Managed by AWS:** Toàn bộ trạng thái tài nguyên do AWS quản lý tự động trực tiếp trên CloudFormation Engine.
-- **Không cần lưu trữ State File:** Loại bỏ hoàn toàn rủi ro lộ bí mật, mất đồng bộ hoặc conflict state file (không cần S3/DynamoDB).
-- **Drift Detection:** Cho phép kiểm tra độ lệch cấu hình trực tiếp từ AWS Console / AWS CLI mà không lo hỏng state.
+## ☁️ Native AWS CloudFormation Infrastructure Management (No State File)
+The entire infrastructure is 100% managed with **AWS CloudFormation Native**:
+- **AWS-Managed State:** Resource state is maintained internally by AWS CloudFormation.
+- **Zero State File Overhead:** Eliminates state locking conflicts, accidental leaks, and S3/DynamoDB maintenance overhead.
+- **Drift Detection:** Enables automated configuration drift detection directly from the AWS Console or AWS CLI.

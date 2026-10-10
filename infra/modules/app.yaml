@@ -56,15 +56,40 @@ Parameters:
 
   CertificateArn:
     Type: String
-    Default: 'arn:aws:acm:ap-southeast-1:649519997247:certificate/3565f62c-9fd6-4aec-bb6a-5182e3337479'
+    Default: ''
     Description: ACM Certificate ARN for HTTPS ALB listener (*.png261.dev)
+
+  AlertEmail:
+    Type: String
+    Default: ''
+    Description: Optional email address to receive CloudWatch Alarms SNS notifications
 
 Conditions:
   IsProd: !Equals [!Ref EnvironmentName, 'prod']
   HasCertificateArn: !Not [!Equals [!Ref CertificateArn, '']]
+  HasAlertEmail: !Not [!Equals [!Ref AlertEmail, '']]
 
 
 Resources:
+  OpsAlertTopic:
+    Type: AWS::SNS::Topic
+    Properties:
+      TopicName: !Sub '${EnvironmentName}-opt4-ops-alerts'
+      DisplayName: !Sub '${EnvironmentName} Option 4 Ops Alerts'
+      Tags:
+        - Key: Name
+          Value: !Sub '${EnvironmentName}-opt4-ops-alert-topic'
+        - Key: Environment
+          Value: !Ref EnvironmentName
+
+  OpsAlertEmailSubscription:
+    Type: AWS::SNS::Subscription
+    Condition: HasAlertEmail
+    Properties:
+      TopicArn: !Ref OpsAlertTopic
+      Protocol: email
+      Endpoint: !Ref AlertEmail
+
   AppLogGroup:
     Type: AWS::Logs::LogGroup
     Properties:
@@ -188,15 +213,15 @@ Resources:
       VpcId:
         Fn::ImportValue: !Sub '${EnvironmentName}-VpcId'
       TargetType: instance
-      HealthCheckPath: /login
+      HealthCheckPath: /api/health
       HealthCheckPort: '80'
       HealthCheckProtocol: HTTP
-      HealthCheckIntervalSeconds: 30
+      HealthCheckIntervalSeconds: 15
       HealthCheckTimeoutSeconds: 5
       HealthyThresholdCount: 2
       UnhealthyThresholdCount: 3
       Matcher:
-        HttpCode: 200-399
+        HttpCode: '200'
       TargetGroupAttributes:
         - Key: deregistration_delay.timeout_seconds
           Value: '30'
@@ -454,6 +479,10 @@ Resources:
       EvaluationPeriods: 1
       Threshold: 10
       ComparisonOperator: GreaterThanThreshold
+      AlarmActions:
+        - !Ref OpsAlertTopic
+      OKActions:
+        - !Ref OpsAlertTopic
       Dimensions:
         - Name: LoadBalancer
           Value: !GetAtt ApplicationLoadBalancer.LoadBalancerFullName
@@ -471,6 +500,10 @@ Resources:
       EvaluationPeriods: 2
       Threshold: 85
       ComparisonOperator: GreaterThanThreshold
+      AlarmActions:
+        - !Ref OpsAlertTopic
+      OKActions:
+        - !Ref OpsAlertTopic
       Dimensions:
         - Name: AutoScalingGroupName
           Value: !Ref WebAutoScalingGroup
@@ -486,6 +519,10 @@ Resources:
       EvaluationPeriods: 1
       Threshold: 5000000000
       ComparisonOperator: LessThanOrEqualToThreshold
+      AlarmActions:
+        - !Ref OpsAlertTopic
+      OKActions:
+        - !Ref OpsAlertTopic
       Dimensions:
         - Name: DBInstanceIdentifier
           Value: !Ref RDSInstance
@@ -501,6 +538,10 @@ Resources:
       EvaluationPeriods: 2
       Threshold: 85
       ComparisonOperator: GreaterThanThreshold
+      AlarmActions:
+        - !Ref OpsAlertTopic
+      OKActions:
+        - !Ref OpsAlertTopic
       Dimensions:
         - Name: DBInstanceIdentifier
           Value: !Ref RDSInstance
@@ -542,4 +583,7 @@ Outputs:
   DNSSetupGuide:
     Description: Custom Domain DNS Setup Instructions
     Value: !Sub 'Add CNAME in DNS: ${SubdomainName} -> ${CloudFrontDistribution.DomainName} (DNS-only / no proxy).'
+  OpsAlertTopicArn:
+    Description: Ops Monitoring Alert SNS Topic ARN
+    Value: !Ref OpsAlertTopic
 
