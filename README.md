@@ -5,11 +5,14 @@ Independent infrastructure and application source code for **Option 4: 1 EC2 Web
 ## 1. Directory Structure (File Structure)
 ```text
 .
-├── .github/workflows/ci-cd.yml   # CI/CD Pipeline (test code, lint CloudFormation, auto-deploy)
+├── .github/workflows/
+│   ├── ci-app.yml       # CI: Test Application & Build Check
+│   ├── ci-infra.yml     # CI: Lint CloudFormation Templates
+│   ├── build-ecr.yml    # CD: Build Docker Image & Push to Amazon ECR
+│   └── deploy.yml       # CD: Deploy Infrastructure via CloudFormation
 ├── app/                          # Standalone web application (Next.js / Node.js)
 ├── docs/                         # Technical documentation (Deployment, Operations, Architecture)
 ├── infra/                        # AWS CloudFormation Infrastructure-as-Code
-│   ├── cloudformation.yaml       # Consolidated CloudFormation template
 │   ├── modules/                  # Modular templates (app.yaml, vpc-subnets.yaml, etc.)
 │   ├── environments/             # Environment parameters for dev & prod
 │   └── architecture_diagram.png  # Diagram-as-Code architecture diagram
@@ -31,15 +34,6 @@ Independent infrastructure and application source code for **Option 4: 1 EC2 Web
 ### B. Cross-Region Cost Comparison
 - **Singapore (`ap-southeast-1`):** $47.64 / month (Lowest latency to Southeast Asia & Vietnam: ~30ms).
 - **US East (`us-east-1`):** $42.15 / month (11.5% cheaper due to lower baseline compute and RDS rates in US regions).
-
-<!-- INFRACOST_START -->
-### 💵 Automated CloudFormation Cost Scan (Infracost CI/CD Output)
-*Scan timestamp: Sat Oct 10 09:54:50 UTC 2026*
-
-```text
-No costed resources detected.
-```
-<!-- INFRACOST_END -->
 
 ## 3. Architecture Overview
 ![Architecture](infra/architecture_diagram.png)
