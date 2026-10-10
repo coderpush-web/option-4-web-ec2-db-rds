@@ -22,7 +22,6 @@ All CloudFormation files reside under `infra/`:
 
 ```text
 infra/
-├── deploy.sh                # Multi-stack deployment script
 ├── environments/
 │   ├── dev.json             # Environment parameters for Development
 │   └── prod.json            # Environment parameters for Production
@@ -77,13 +76,13 @@ Under **Settings** -> **Secrets and variables** -> **Actions**:
    - Builds multi-stage Docker image for Next.js.
    - Pushes image with tag `dev-latest` (on `dev` branch) or `latest` (on `main` branch).
 3. **Infrastructure Stacks Deployment:**
-   - Runs `./deploy.sh prod latest` on merge to `main`.
+   - Triggers GitHub Actions CD (`deploy.yml`) on merge to `main`.
 4. **Zero-Downtime Instance Refresh:**
    - Triggers `aws autoscaling start-instance-refresh` to update Web instances progressively while the managed RDS database runs uninterrupted.
 
 ---
 
-## 5. Manual Deployment via AWS CLI & `deploy.sh`
+## 5. Manual Deployment via AWS CLI
 
 ### Step 1: Build and Push Docker Image to ECR
 
