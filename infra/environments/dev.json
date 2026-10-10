@@ -8,6 +8,9 @@
     "DBUser": "appadmin",
     "DBPassword": "P@ssw0rdSecure2026Dev!",
     "DomainName": "png261.dev",
-    "SubdomainName": "opt4-dev.png261.dev"
+    "SubdomainName": "opt4-dev.png261.dev",
+    "MinInstances": "1",
+    "MaxInstances": "2",
+    "DesiredInstances": "1"
   }
 }
