@@ -120,7 +120,7 @@ Resources:
   WebAuthSecret:
     Type: AWS::SecretsManager::Secret
     Properties:
-      Name: !Sub '${EnvironmentName}-web-auth-secret'
+      Name: !Sub '${EnvironmentName}-opt4-web-auth-secret'
       Description: !Sub 'NextAuth AUTH_SECRET session encryption key for ${EnvironmentName}'
       GenerateSecretString:
         SecretStringTemplate: '{"auth_secret": ""}'
@@ -129,7 +129,7 @@ Resources:
         ExcludePunctuation: true
       Tags:
         - Key: Name
-          Value: !Sub '${EnvironmentName}-web-auth-secret'
+          Value: !Sub '${EnvironmentName}-opt4-web-auth-secret'
         - Key: Environment
           Value: !Ref EnvironmentName
 
