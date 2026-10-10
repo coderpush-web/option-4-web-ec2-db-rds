@@ -106,7 +106,7 @@ flowchart TD
 
 | Development Environment (`opt4-dev.png261.dev`) | Production Environment (`opt4.png261.dev`) |
 | :---: | :---: |
-| ![Development Environment](screenshots/dev_screenshot.png) | ![Production Environment](screenshots/prod_screenshot.png) |
+| ![Development Environment](docs/screenshots/dev_screenshot.png) | ![Production Environment](docs/screenshots/prod_screenshot.png) |
 
 > 🚀 **Deployment Notes:**
 > - **Development (`opt4-dev.png261.dev`):** Debug configuration, Web Auto Scaling Min 1 - Max 2 instances, single-AZ RDS.
