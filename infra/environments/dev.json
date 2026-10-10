@@ -6,7 +6,6 @@
     "WebVolumeSize": "20",
     "RDSAllocatedStorage": "20",
     "DBUser": "appadmin",
-    "DBPassword": "P@ssw0rdSecure2026Dev!",
     "SubdomainName": "opt4-dev.png261.dev",
     "MinInstances": "1",
     "MaxInstances": "2",

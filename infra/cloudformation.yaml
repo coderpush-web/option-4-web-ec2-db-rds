@@ -27,11 +27,6 @@ Parameters:
     Type: String
     Default: appadmin
 
-  DBPassword:
-    Type: String
-    NoEcho: true
-    Default: P@ssw0rdSecure2026!
-
   LatestAmiId:
     Type: AWS::SSM::Parameter::Value<AWS::EC2::Image::Id>
     Default: /aws/service/ami-amazon-linux-latest/al2023-ami-kernel-default-x86_64
@@ -70,6 +65,33 @@ Conditions:
 
 
 Resources:
+  AppLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: !Sub '/aws/ec2/${EnvironmentName}-option-4-webapp'
+      RetentionInDays: !If [IsProd, 30, 14]
+      Tags:
+        - Key: Name
+          Value: !Sub '${EnvironmentName}-opt4-log-group'
+        - Key: Environment
+          Value: !Ref EnvironmentName
+
+  RDSSecret:
+    Type: AWS::SecretsManager::Secret
+    Properties:
+      Name: !Sub '${EnvironmentName}-rds-mysql-credentials'
+      Description: !Sub 'RDS MySQL credentials for ${EnvironmentName}'
+      GenerateSecretString:
+        SecretStringTemplate: !Sub '{"username": "${DBUser}"}'
+        GenerateStringKey: password
+        PasswordLength: 16
+        ExcludeCharacters: '"@/\\ '
+      Tags:
+        - Key: Name
+          Value: !Sub '${EnvironmentName}-rds-secret'
+        - Key: Environment
+          Value: !Ref EnvironmentName
+
   AppECRRepository:
     Type: AWS::ECR::Repository
     Properties:
@@ -121,8 +143,8 @@ Resources:
       DBInstanceClass: !Ref RDSInstanceClass
       Engine: mysql
       EngineVersion: '8.0.46'
-      MasterUsername: !Ref DBUser
-      MasterUserPassword: !Ref DBPassword
+      MasterUsername: !Sub '{{resolve:secretsmanager:${RDSSecret}:SecretString:username}}'
+      MasterUserPassword: !Sub '{{resolve:secretsmanager:${RDSSecret}:SecretString:password}}'
       DBName: appdb
       DBSubnetGroupName: !Ref DBSubnetGroup
       VPCSecurityGroups:
@@ -263,6 +285,21 @@ Resources:
                 docker pull "$IMAGE_URI" && break || sleep 5
               done
 
+              echo "Fetching database credentials from AWS Secrets Manager..."
+              SECRET_JSON=$(aws secretsmanager get-secret-value --secret-id "${RDSSecretId}" --region "${AWS::Region}" --query SecretString --output text)
+              DB_USER=$(echo "$SECRET_JSON" | python3 -c "import json,sys; print(json.loads(sys.stdin.read())['username'])")
+              DB_PASS=$(echo "$SECRET_JSON" | python3 -c "import json,sys; print(json.loads(sys.stdin.read())['password'])")
+
+              cat << EOF > /etc/react-webapp.env
+              APP_ENV=${EnvironmentName}
+              PORT=80
+              DB_HOST=${RDSEndpoint}
+              DB_USER=$DB_USER
+              DB_PASSWORD=$DB_PASS
+              DB_NAME=appdb
+              EOF
+              chmod 600 /etc/react-webapp.env
+
               cat << 'SVC' > /etc/systemd/system/react-webapp.service
               [Unit]
               Description=Dockerized React Web App connected to RDS MySQL
@@ -275,16 +312,11 @@ Resources:
               ExecStartPre=-/usr/bin/docker stop react-webapp
               ExecStartPre=-/usr/bin/docker rm react-webapp
               ExecStart=/usr/bin/docker run --name react-webapp -p 80:80 \
+                --env-file /etc/react-webapp.env \
                 --log-driver=awslogs \
                 --log-opt awslogs-region=${AWS::Region} \
                 --log-opt awslogs-group=/aws/ec2/${EnvironmentName}-option-4-webapp \
                 --log-opt awslogs-create-group=true \
-                -e APP_ENV=${EnvironmentName} \
-                -e PORT=80 \
-                -e DB_HOST=${RDSEndpoint} \
-                -e DB_USER=${User} \
-                -e DB_PASSWORD=${Password} \
-                -e DB_NAME=appdb \
                 ${AWS::AccountId}.dkr.ecr.${AWS::Region}.amazonaws.com/${EnvironmentName}-option-4-web-app:${ImageTag}
               ExecStop=/usr/bin/docker stop react-webapp
 
@@ -296,8 +328,7 @@ Resources:
               systemctl enable react-webapp
               systemctl start react-webapp || true
             - RDSEndpoint: !GetAtt RDSInstance.Endpoint.Address
-              User: !Ref DBUser
-              Password: !Ref DBPassword
+              RDSSecretId: !Ref RDSSecret
         TagSpecifications:
           - ResourceType: instance
             Tags:
@@ -411,6 +442,68 @@ Resources:
           Value: !Sub '${EnvironmentName}-opt4-cf'
         - Key: Environment
           Value: !Ref EnvironmentName
+
+  ALB5xxErrorAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmDescription: 'Alarm if ALB 5XX error count exceeds 10 in 1 minute'
+      MetricName: HTTPCode_Target_5XX_Count
+      Namespace: AWS/ApplicationELB
+      Statistic: Sum
+      Period: 60
+      EvaluationPeriods: 1
+      Threshold: 10
+      ComparisonOperator: GreaterThanThreshold
+      Dimensions:
+        - Name: LoadBalancer
+          Value: !GetAtt ApplicationLoadBalancer.LoadBalancerFullName
+        - Name: TargetGroup
+          Value: !GetAtt ALBTargetGroup.TargetGroupFullName
+
+  WebHighCPUAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmDescription: 'Alarm if ASG CPU utilization exceeds 85% for 2 consecutive periods'
+      MetricName: CPUUtilization
+      Namespace: AWS/EC2
+      Statistic: Average
+      Period: 300
+      EvaluationPeriods: 2
+      Threshold: 85
+      ComparisonOperator: GreaterThanThreshold
+      Dimensions:
+        - Name: AutoScalingGroupName
+          Value: !Ref WebAutoScalingGroup
+
+  RDSLowStorageAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmDescription: 'Alarm if RDS free storage space is less than or equal to 5GB'
+      MetricName: FreeStorageSpace
+      Namespace: AWS/RDS
+      Statistic: Average
+      Period: 300
+      EvaluationPeriods: 1
+      Threshold: 5000000000
+      ComparisonOperator: LessThanOrEqualToThreshold
+      Dimensions:
+        - Name: DBInstanceIdentifier
+          Value: !Ref RDSInstance
+
+  RDSHighCPUAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmDescription: 'Alarm if RDS CPU utilization exceeds 85% for 2 consecutive periods'
+      MetricName: CPUUtilization
+      Namespace: AWS/RDS
+      Statistic: Average
+      Period: 300
+      EvaluationPeriods: 2
+      Threshold: 85
+      ComparisonOperator: GreaterThanThreshold
+      Dimensions:
+        - Name: DBInstanceIdentifier
+          Value: !Ref RDSInstance
 
 Outputs:
   WebsiteURL:
