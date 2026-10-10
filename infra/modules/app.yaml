@@ -63,8 +63,24 @@ Parameters:
     Default: 1
     Description: Desired instances in Auto Scaling Group
 
+  CertificateArn:
+    Type: String
+    Default: 'arn:aws:acm:ap-southeast-1:649519997247:certificate/3565f62c-9fd6-4aec-bb6a-5182e3337479'
+    Description: ACM Certificate ARN for HTTPS ALB listener (*.png261.dev)
+
+  CloudflareOriginSecret:
+    Type: String
+    Default: ''
+    NoEcho: true
+    Description: Optional secret header value (X-Origin-Secret) to restrict ALB access only to Cloudflare proxy
+
 Conditions:
   IsProd: !Equals [!Ref EnvironmentName, 'prod']
+  HasCertificateArn: !Not [!Equals [!Ref CertificateArn, '']]
+  HasCloudflareSecret: !And
+    - !Condition HasCertificateArn
+    - !Not [!Equals [!Ref CloudflareOriginSecret, '']]
+
 
 Resources:
   DBSubnetGroup:
@@ -155,8 +171,53 @@ Resources:
       Port: 80
       Protocol: HTTP
       DefaultActions:
+        !If
+          - HasCertificateArn
+          - - Type: redirect
+              RedirectConfig:
+                Protocol: HTTPS
+                Port: '443'
+                StatusCode: HTTP_301
+          - - Type: forward
+              TargetGroupArn: !Ref ALBTargetGroup
+
+  ALBHttpsListener:
+    Type: AWS::ElasticLoadBalancingV2::Listener
+    Condition: HasCertificateArn
+    Properties:
+      LoadBalancerArn: !Ref ApplicationLoadBalancer
+      Port: 443
+      Protocol: HTTPS
+      SslPolicy: ELBSecurityPolicy-TLS13-1-2-2021-06
+      Certificates:
+        - CertificateArn: !Ref CertificateArn
+      DefaultActions:
+        !If
+          - HasCloudflareSecret
+          - - Type: fixed-response
+              FixedResponseConfig:
+                ContentType: text/plain
+                MessageBody: 'Direct origin access forbidden. Requests must route via Cloudflare proxy.'
+                StatusCode: '403'
+          - - Type: forward
+              TargetGroupArn: !Ref ALBTargetGroup
+
+  ALBCloudflareRule:
+    Type: AWS::ElasticLoadBalancingV2::ListenerRule
+    Condition: HasCloudflareSecret
+    Properties:
+      ListenerArn: !Ref ALBHttpsListener
+      Priority: 1
+      Conditions:
+        - Field: http-header
+          HttpHeaderConfig:
+            HttpHeaderName: X-Origin-Secret
+            Values:
+              - !Ref CloudflareOriginSecret
+      Actions:
         - Type: forward
           TargetGroupArn: !Ref ALBTargetGroup
+
 
   WebLaunchTemplate:
     Type: AWS::EC2::LaunchTemplate
@@ -279,7 +340,7 @@ Resources:
 Outputs:
   WebsiteURL:
     Description: Application Load Balancer Website URL
-    Value: !Sub 'http://${ApplicationLoadBalancer.DNSName}'
+    Value: !If [HasCertificateArn, !Sub 'https://${SubdomainName}', !Sub 'http://${ApplicationLoadBalancer.DNSName}']
   LoadBalancerDNS:
     Description: Application Load Balancer DNS Name
     Value: !GetAtt ApplicationLoadBalancer.DNSName
@@ -301,3 +362,7 @@ Outputs:
   DnsRecordValue:
     Description: DNS Record Value (ALB Target)
     Value: !GetAtt ApplicationLoadBalancer.DNSName
+  CloudflareProxyGuide:
+    Description: Cloudflare Setup Instructions
+    Value: !Sub 'Add CNAME in Cloudflare: ${SubdomainName} -> ${ApplicationLoadBalancer.DNSName} (Proxied 🟧) with SSL/TLS Full (Strict).'
+

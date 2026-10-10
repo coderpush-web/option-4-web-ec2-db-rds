@@ -11,6 +11,8 @@
     "SubdomainName": "opt4-dev.png261.dev",
     "MinInstances": "1",
     "MaxInstances": "2",
-    "DesiredInstances": "1"
+    "DesiredInstances": "1",
+    "CertificateArn": "arn:aws:acm:ap-southeast-1:649519997247:certificate/3565f62c-9fd6-4aec-bb6a-5182e3337479",
+    "CloudflareOriginSecret": ""
   }
 }
