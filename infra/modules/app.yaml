@@ -132,6 +132,7 @@ Resources:
 
   RDSInstance:
     Type: AWS::RDS::DBInstance
+    DeletionPolicy: Delete
     Properties:
       DBInstanceIdentifier: !Sub '${EnvironmentName}-mysql-rds'
       AllocatedStorage: !Ref RDSAllocatedStorage
