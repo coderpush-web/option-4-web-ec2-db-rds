@@ -55,20 +55,21 @@ Diagram:
     PublicSubnetALB:
       Type: AWS::EC2::Subnet
       Preset: PublicSubnet
-      Title: "Public Subnets (ALB & NAT Tier)"
+      Title: "Public Subnets (ALB Tier)"
       Children:
         - ALB
-        - NATGW
 
-    NATGW:
-      Type: AWS::EC2::NatGateway
-      Title: "NAT Gateway (Egress)"
+    ALB:
+      Type: AWS::ElasticLoadBalancingV2::LoadBalancer
+      Preset: Application Load Balancer
+      Title: "Application Load Balancer"
 
     MainStack:
       Type: AWS::Diagram::HorizontalStack
       Children:
         - WebASG
         - PrivateSubnetDB
+        - VPCEndpoints
 
     WebASG:
       Type: AWS::AutoScaling::AutoScalingGroup
@@ -110,10 +111,9 @@ Diagram:
       Type: AWS::RDS::DBInstance
       Title: "RDS MySQL (Multi-AZ)"
 
-    ALB:
-      Type: AWS::ElasticLoadBalancingV2::LoadBalancer
-      Preset: Application Load Balancer
-      Title: "Application Load Balancer"
+    VPCEndpoints:
+      Type: AWS::EC2::VPCEndpoint
+      Title: "AWS PrivateLink\n(ECR & S3 Endpoints)"
 
     IGW:
       Type: AWS::EC2::InternetGateway
@@ -189,17 +189,17 @@ Diagram:
       TargetArrowHead:
         Type: Open
       Type: orthogonal
-    - Source: WebInstance1
-      SourcePosition: NW
-      Target: NATGW
-      TargetPosition: S
+    - Source: WebInstance2
+      SourcePosition: E
+      Target: VPCEndpoints
+      TargetPosition: W
       TargetArrowHead:
         Type: Open
       Type: orthogonal
       Labels:
-        SourceLeft:
-          Title: "Egress"
-    - Source: NATGW
+        SourceRight:
+          Title: "PrivateLink"
+    - Source: VPCEndpoints
       SourcePosition: E
       Target: ECR
       TargetPosition: W
