@@ -337,13 +337,88 @@ Resources:
           PredefinedMetricType: ASGAverageCPUUtilization
         TargetValue: 70.0
 
+  CloudFrontDistribution:
+    Type: AWS::CloudFront::Distribution
+    Properties:
+      DistributionConfig:
+        Comment: !Sub '${EnvironmentName} Option 4 Web Distribution'
+        Enabled: true
+        HttpVersion: http2and3
+        PriceClass: PriceClass_All
+        Origins:
+          - Id: ALBOrigin
+            DomainName: !GetAtt ApplicationLoadBalancer.DNSName
+            CustomOriginConfig:
+              HTTPPort: 80
+              HTTPSPort: 443
+              OriginProtocolPolicy: http-only
+              OriginKeepaliveTimeout: 5
+              OriginReadTimeout: 30
+        DefaultCacheBehavior:
+          TargetOriginId: ALBOrigin
+          ViewerProtocolPolicy: redirect-to-https
+          AllowedMethods:
+            - GET
+            - HEAD
+            - OPTIONS
+            - PUT
+            - POST
+            - PATCH
+            - DELETE
+          CachedMethods:
+            - GET
+            - HEAD
+            - OPTIONS
+          CachePolicyId: 4135ea2d-6df8-44a3-9df3-4b5a84be39ad
+          OriginRequestPolicyId: 216adef6-5c1d-47e7-81dd-c14a2a485ea9
+          Compress: true
+        CacheBehaviors:
+          - PathPattern: '/_next/static/*'
+            TargetOriginId: ALBOrigin
+            ViewerProtocolPolicy: redirect-to-https
+            AllowedMethods:
+              - GET
+              - HEAD
+            CachedMethods:
+              - GET
+              - HEAD
+            CachePolicyId: 658327ea-f89d-4fab-a63d-7e88639e58f6
+            Compress: true
+          - PathPattern: '/static/*'
+            TargetOriginId: ALBOrigin
+            ViewerProtocolPolicy: redirect-to-https
+            AllowedMethods:
+              - GET
+              - HEAD
+            CachedMethods:
+              - GET
+              - HEAD
+            CachePolicyId: 658327ea-f89d-4fab-a63d-7e88639e58f6
+            Compress: true
+        ViewerCertificate:
+          CloudFrontDefaultCertificate: true
+      Tags:
+        - Key: Name
+          Value: !Sub '${EnvironmentName}-opt4-cf'
+        - Key: Environment
+          Value: !Ref EnvironmentName
+
 Outputs:
   WebsiteURL:
-    Description: Application Load Balancer Website URL
-    Value: !If [HasCertificateArn, !Sub 'https://${SubdomainName}', !Sub 'http://${ApplicationLoadBalancer.DNSName}']
+    Description: Website URL via CloudFront CDN
+    Value: !Sub 'https://${CloudFrontDistribution.DomainName}'
+  CloudFrontDomainName:
+    Description: CloudFront Distribution Domain Name
+    Value: !GetAtt CloudFrontDistribution.DomainName
+  CloudFrontDistributionId:
+    Description: CloudFront Distribution ID
+    Value: !Ref CloudFrontDistribution
   LoadBalancerDNS:
     Description: Application Load Balancer DNS Name
     Value: !GetAtt ApplicationLoadBalancer.DNSName
+  LoadBalancerURL:
+    Description: Direct Application Load Balancer URL
+    Value: !Sub 'http://${ApplicationLoadBalancer.DNSName}'
   RDSEndpointAddress:
     Description: RDS Endpoint Address
     Value: !GetAtt RDSInstance.Endpoint.Address
@@ -360,9 +435,9 @@ Outputs:
     Description: DNS Record Name
     Value: !Ref SubdomainName
   DnsRecordValue:
-    Description: DNS Record Value (ALB Target)
-    Value: !GetAtt ApplicationLoadBalancer.DNSName
+    Description: DNS Record Value (CloudFront Distribution Target)
+    Value: !GetAtt CloudFrontDistribution.DomainName
   CloudflareProxyGuide:
     Description: Cloudflare Setup Instructions
-    Value: !Sub 'Add CNAME in Cloudflare: ${SubdomainName} -> ${ApplicationLoadBalancer.DNSName} (Proxied 🟧) with SSL/TLS Full (Strict).'
+    Value: !Sub 'Add CNAME in Cloudflare: ${SubdomainName} -> ${CloudFrontDistribution.DomainName} (or ALB DNS ${ApplicationLoadBalancer.DNSName}) with SSL/TLS Full.'
 
