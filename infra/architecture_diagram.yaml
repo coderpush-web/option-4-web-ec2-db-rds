@@ -10,7 +10,6 @@ Diagram:
       Children:
         - AWSCloud
         - CloudFront
-        - DNS
         - User
 
     User:
@@ -18,15 +17,10 @@ Diagram:
       Preset: User
       Title: "User"
 
-    DNS:
-      Type: AWS::Diagram::Resource
-      Preset: Internet
-      Title: "Custom Domain DNS\nopt4.png261.dev"
-
     CloudFront:
       Type: AWS::Diagram::Resource
       Preset: "Amazon CloudFront"
-      Title: "Amazon CloudFront\n(Static Cache & Edge)"
+      Title: "Amazon CloudFront"
 
     AWSCloud:
       Type: AWS::Diagram::Cloud
@@ -42,120 +36,85 @@ Diagram:
 
     ECR:
       Type: AWS::ECR
-      Title: "Amazon ECR\n(App Image Repository)"
+      Title: "Amazon ECR"
 
     SecretsManager:
       Type: AWS::SecretsManager::Secret
-      Title: "AWS Secrets Manager\n(RDS Credentials)"
+      Title: "AWS Secrets Manager"
 
     CloudWatch:
       Type: AWS::CloudWatch
-      Title: "Amazon CloudWatch\n(Logs & Alarms)"
+      Title: "Amazon CloudWatch"
 
     SNS:
       Type: AWS::SNS::Topic
-      Title: "Amazon SNS\n(Ops Alerts)"
+      Title: "Amazon SNS"
 
     VPC:
       Type: AWS::EC2::VPC
-      Title: "VPC (10.0.0.0/16)"
+      Title: "VPC"
       Direction: vertical
       Children:
-        - MainStack
-        - PublicSubnetALB
+        - PrivateSubnets
+        - PublicSubnet
       BorderChildren:
         - Position: S
           Resource: IGW
-
-    PublicSubnetALB:
-      Type: AWS::EC2::Subnet
-      Preset: PublicSubnet
-      Title: "Public Subnets (ALB Tier)"
-      Children:
-        - ALB
-
-    ALB:
-      Type: AWS::ElasticLoadBalancingV2::LoadBalancer
-      Preset: Application Load Balancer
-      Title: "Application Load Balancer\n(/api/health)"
-
-    MainStack:
-      Type: AWS::Diagram::HorizontalStack
-      Children:
-        - WebASG
-        - PrivateSubnetDB
-        - VPCEndpoints
-
-    WebASG:
-      Type: AWS::AutoScaling::AutoScalingGroup
-      Title: "Web Auto Scaling Group (Private Subnets)"
-      Children:
-        - WebSubnet1
-        - WebSubnet2
-
-    WebSubnet1:
-      Type: AWS::EC2::Subnet
-      Preset: PrivateSubnet
-      Title: "Private Subnet 1 (App)"
-      Children:
-        - WebInstance1
-
-    WebInstance1:
-      Type: AWS::EC2::Instance
-      Title: "Web Instance 1"
-
-    WebSubnet2:
-      Type: AWS::EC2::Subnet
-      Preset: PrivateSubnet
-      Title: "Private Subnet 2 (App)"
-      Children:
-        - WebInstance2
-
-    WebInstance2:
-      Type: AWS::EC2::Instance
-      Title: "Web Instance 2"
-
-    PrivateSubnetDB:
-      Type: AWS::EC2::Subnet
-      Preset: PrivateSubnet
-      Title: "Private Subnet (RDS Tier)"
-      Children:
-        - RDSInstance
-
-    RDSInstance:
-      Type: AWS::RDS::DBInstance
-      Title: "RDS MySQL (Multi-AZ)"
-
-    VPCEndpoints:
-      Type: AWS::EC2::VPCEndpoint
-      Title: "AWS PrivateLink\n(Single-AZ ECR & S3)"
 
     IGW:
       Type: AWS::EC2::InternetGateway
       IconFill:
         Type: rect
 
+    PublicSubnet:
+      Type: AWS::EC2::Subnet
+      Preset: PublicSubnet
+      Title: "Public Subnet"
+      Children:
+        - ALB
+
+    ALB:
+      Type: AWS::ElasticLoadBalancingV2::LoadBalancer
+      Preset: "Application Load Balancer"
+      Title: "Application Load Balancer"
+
+    PrivateSubnets:
+      Type: AWS::Diagram::HorizontalStack
+      Children:
+        - WebSubnet
+        - DBSubnet
+
+    WebSubnet:
+      Type: AWS::EC2::Subnet
+      Preset: PrivateSubnet
+      Title: "Private Subnet (Web)"
+      Children:
+        - WebASG
+
+    WebASG:
+      Type: AWS::AutoScaling::AutoScalingGroup
+      Preset: "AWS::AutoScaling::AutoScalingGroup"
+      Title: "Auto Scaling Group"
+
+    DBSubnet:
+      Type: AWS::EC2::Subnet
+      Preset: PrivateSubnet
+      Title: "Private Subnet (DB)"
+      Children:
+        - RDSInstance
+
+    RDSInstance:
+      Type: AWS::RDS::DBInstance
+      Title: "Amazon RDS"
+
   Links:
     - Source: User
-      SourcePosition: N
-      Target: DNS
-      TargetPosition: S
-      TargetArrowHead:
-        Type: Open
-      Type: orthogonal
-      Labels:
-        SourceLeft:
-          Title: "HTTPS:443"
-    - Source: DNS
       SourcePosition: N
       Target: CloudFront
       TargetPosition: S
       TargetArrowHead:
         Type: Open
       Type: orthogonal
-      Labels:
-        SourceLeft:
-          Title: "CNAME"
     - Source: CloudFront
       SourcePosition: N
       Target: IGW
@@ -163,9 +122,6 @@ Diagram:
       TargetArrowHead:
         Type: Open
       Type: orthogonal
-      Labels:
-        SourceLeft:
-          Title: "HTTP:80"
     - Source: IGW
       SourcePosition: N
       Target: ALB
@@ -174,56 +130,19 @@ Diagram:
         Type: Open
       Type: orthogonal
     - Source: ALB
-      SourcePosition: NW
-      Target: WebInstance1
+      SourcePosition: N
+      Target: WebASG
       TargetPosition: S
       TargetArrowHead:
         Type: Open
       Type: orthogonal
-    - Source: ALB
-      SourcePosition: NE
-      Target: WebInstance2
-      TargetPosition: S
-      TargetArrowHead:
-        Type: Open
-      Type: orthogonal
-    - Source: WebInstance1
+    - Source: WebASG
       SourcePosition: E
       Target: RDSInstance
       TargetPosition: W
       TargetArrowHead:
         Type: Open
       Type: orthogonal
-      Labels:
-        SourceRight:
-          Title: "Port 3306"
-    - Source: WebInstance2
-      SourcePosition: E
-      Target: RDSInstance
-      TargetPosition: W
-      TargetArrowHead:
-        Type: Open
-      Type: orthogonal
-    - Source: WebInstance2
-      SourcePosition: E
-      Target: VPCEndpoints
-      TargetPosition: W
-      TargetArrowHead:
-        Type: Open
-      Type: orthogonal
-      Labels:
-        SourceRight:
-          Title: "PrivateLink"
-    - Source: VPCEndpoints
-      SourcePosition: E
-      Target: ECR
-      TargetPosition: W
-      TargetArrowHead:
-        Type: Open
-      Type: orthogonal
-      Labels:
-        SourceRight:
-          Title: "Pull Image"
     - Source: WebASG
       SourcePosition: E
       Target: SecretsManager
@@ -231,9 +150,13 @@ Diagram:
       TargetArrowHead:
         Type: Open
       Type: orthogonal
-      Labels:
-        SourceRight:
-          Title: "Get Credentials"
+    - Source: WebASG
+      SourcePosition: E
+      Target: ECR
+      TargetPosition: W
+      TargetArrowHead:
+        Type: Open
+      Type: orthogonal
     - Source: WebASG
       SourcePosition: E
       Target: CloudWatch
@@ -241,9 +164,6 @@ Diagram:
       TargetArrowHead:
         Type: Open
       Type: orthogonal
-      Labels:
-        SourceRight:
-          Title: "Logs & Alarms"
     - Source: CloudWatch
       SourcePosition: E
       Target: SNS
@@ -251,6 +171,3 @@ Diagram:
       TargetArrowHead:
         Type: Open
       Type: orthogonal
-      Labels:
-        SourceRight:
-          Title: "Notify"
