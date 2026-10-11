@@ -17,6 +17,23 @@ export function getSqlClient(): any {
       const isSsl = connectionString.includes('sslmode=require');
       let sslConfig: any = false;
 
+const AWS_RDS_ROOT_CA = `-----BEGIN CERTIFICATE-----
+MIIGCTCCA/GgAwIBAgIRAIO6ldra1KZvNWJ0TA1ihXEwDQYJKoZIhvcNAQEMBQAw
+gZwxCzAJBgNVBAYTAlVTMSIwIAYDVQQKDBlBbWF6b24gV2ViIFNlcnZpY2VzLCBJ
+bmMuMRMwEQYDVQQLDApBbWF6b24gUkRTMQswCQYDVQQIDAJXQTE1MDMGA1UEAwws
+QW1hem9uIFJEUyBhcC1zb3V0aGVhc3QtMSBSb290IENBIFJTQTQwOTYgRzExEDAO
+BgNVBAcMB1NlYXR0bGUwIBcNMjEwNTIxMjE0NTA1WhgPMjEyMTA1MjEyMjQ1MDVa
+MIGcMQswCQYDVQQGEwJVUzEiMCAGA1UECgwZQW1hem9uIFdlYiBTZXJ2aWNlcywg
+SW5jLjETMBEGA1UECwwKQW1hem9uIFJEUzELMAkGA1UECAwCV0ExNTAzBgNVBAMM
+LEFtYXpvbiBSRFMgYXAtc291dGhlYXN0LTEgUm9vdCBDQSBSU0E0MDk2IEcxMRAw
+DgYDVQQHDAdTZWF0dGxlMIICIjANBgkqhkiG9w0BAQEFAAOCAg8AMIICCgKCAgEA
+sDN52Si9pFSyZ1ruh3xAN0nVqEs960o2IK5CPu/ZfshFmzAwnx/MM8EHt/jMeZtj
+SM58LADAsNDL01ELpFZATjgZQ6xNAyXRXE7RiTRUvNkK7O3o2qAGbLnJq/UqF7Sw
+LRnB8V6hYOv+2EjVnohtGCn9SUFGZtYDjWXsLd4ML4Zpxv0a5LK7oEC7AHzbUR7R
+jsjkrXqSv7GE7bvhSOhMkmgxgj1F3J0b0jdQdtyyj109aO0ATUmIvf+Bzadg5AI2
+A9UA+TUcGeebhpHu8AP1Hf56XIlzPpaQv3ZJ4vzoLaVNUC7XKzAl1dlvCl7Klg/C
+-----END CERTIFICATE-----`;
+
       if (isSsl) {
         sslConfig = { rejectUnauthorized: true };
         const rdsCaPath = process.env.RDS_CA_PATH || '/etc/pki/tls/certs/rds-combined-ca-bundle.pem';
@@ -24,8 +41,11 @@ export function getSqlClient(): any {
           try {
             sslConfig.ca = fs.readFileSync(rdsCaPath);
           } catch (e: any) {
-            console.warn('Could not read custom CA bundle, falling back to standard root CAs:', e?.message);
+            console.warn('Could not read custom CA bundle, using embedded AWS RDS Root CA:', e?.message);
+            sslConfig.ca = AWS_RDS_ROOT_CA;
           }
+        } else {
+          sslConfig.ca = AWS_RDS_ROOT_CA;
         }
       }
 
