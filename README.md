@@ -1,13 +1,13 @@
-# Option 4: 1 EC2 Web ASG + 1 AWS Managed RDS Database (Recommended)
+# Option 4: 1 EC2 Web ASG + 1 AWS Managed RDS Database
 
-Independent infrastructure and application source code for **Option 4: 1 EC2 Web ASG + 1 AWS Managed RDS Database (Recommended Architecture) with AWS NAT Gateway**.
+Independent infrastructure and application source code for **Option 4: 1 EC2 Web ASG + 1 AWS Managed RDS Database with AWS NAT Gateway**.
 
 ## 1. Architecture Overview
 ![Architecture](infra/architecture_diagram.png)
 
 ## 2. Cost Analysis
 
-> 💡 **Verified via Infracost CLI:** Cost calculations derived directly from CloudFormation templates using `infracost scan ./infra/modules`.
+> **Verified via Infracost CLI:** Cost calculations derived directly from CloudFormation templates using `infracost scan ./infra/modules`.
 
 ### A. Component Cost Breakdown (Infracost CLI Verified)
 | CloudFormation Module / Component | AWS Resource Type | Monthly Cost (USD) | Notes |
