@@ -5,15 +5,6 @@ Independent infrastructure and application source code for **Option 4: 1 EC2 Web
 ## 1. Architecture Overview
 ![Architecture](infra/architecture_diagram.png)
 
-### Key Architectural Highlights:
-- **CloudFront CDN Edge Caching:** Caches static assets globally, offloading 80–90% of requests from origin servers, lowering TTFB.
-- **Application Load Balancer (ALB):** Spans Multi-AZ Public Subnets, balancing incoming HTTP/HTTPS traffic with health probes on `/api/health`.
-- **AWS NAT Gateway:** Deployed in the Public Subnet with an Elastic IP, enabling EC2 instances in Private Subnets to pull container images from Amazon ECR, access AWS Secrets Manager, and stream logs to CloudWatch securely without exposing inbound ports.
-- **Web Auto Scaling Group (ASG):** Resides securely within Private Subnets, automatically scaling EC2 instances based on CPU utilization.
-- **AWS Managed RDS PostgreSQL (Multi-AZ):** Fully managed relational database located in Private Subnets with automated backups, storage encryption, and automated failover.
-- **AWS Secrets Manager Integration:** Zero hardcoded plaintext database passwords; credentials securely rotated and dynamically supplied to compute tiers.
-- **AWS-Native Custom Domain:** Directs user traffic via DNS CNAME directly to CloudFront & ALB endpoints.
-
 ## 2. Cost Analysis
 
 > 💡 **Verified via Infracost CLI:** Cost calculations derived directly from CloudFormation templates using `infracost scan ./infra/modules`.
@@ -28,7 +19,7 @@ Independent infrastructure and application source code for **Option 4: 1 EC2 Web
 | **Secrets & Operational Monitoring** | `SecretsManager`, `CloudWatch`, `SNS` | **$0.36** | Dual Secrets (RDS + App) and multi-tier alarms |
 | **Total Monthly Cost** | `infra/modules/` | **$90.55 / mo** | ~2,290,000 VND / month |
 
-*(Tiết kiệm **$69.35 / tháng** so với mô hình cũ sử dụng 7 VPC Interface Endpoints $102.20/tháng).*
+*(Saves **$69.35 / month** compared to the previous 7 VPC Interface Endpoints architecture at $102.20/month).*
 
 ### B. Cost by Purchasing Option & Commitment
 | Purchasing Model | Web Compute | RDS Managed DB | NAT Gateway & ALB | Total Monthly Cost | Approx. Local Currency (VND) |
