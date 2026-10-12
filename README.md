@@ -2,26 +2,18 @@
 
 Independent infrastructure and application source code for **Option 4: 1 EC2 Web ASG + 1 AWS Managed RDS Database (Recommended Architecture)**.
 
-## 1. Directory Structure (File Structure)
-```text
-.
-├── .github/workflows/
-│   ├── ci-app.yml       # CI: Test Application & Build Check
-│   ├── ci-infra.yml     # CI: Lint CloudFormation Templates
-│   ├── build-ecr.yml    # CD: Build Docker Image & Push to Amazon ECR
-│   └── deploy.yml       # CD: Deploy Infrastructure via CloudFormation
-├── app/                          # Standalone web application (Next.js / Node.js)
-├── docs/                         # Technical documentation (Deployment, Operations, Architecture)
-├── infra/                        # AWS CloudFormation Infrastructure-as-Code
-│   ├── modules/                  # Modular templates (app.yaml, vpc-subnets.yaml, etc.)
-│   ├── environments/             # Environment parameters for dev & prod
-│   └── architecture_diagram.png  # Diagram-as-Code architecture diagram
-├── test/                         # Automated tests (Unit test & API integration tests)
-│   └── test_api.js
-└── README.md                     # Technical report, cost matrix, and architectural summary
-```
+## 1. Architecture Overview
+![Architecture](infra/architecture_diagram.png)
 
-## 2. Multi-Dimension Cost Analysis
+### Key Architectural Highlights:
+- **CloudFront CDN Edge Caching:** Caches static assets globally, offloading 80–90% of requests from origin servers, lowering TTFB.
+- **Application Load Balancer (ALB):** Spans Multi-AZ Public Subnets, balancing incoming HTTP/HTTPS traffic with health probes on `/api/health`.
+- **Web Auto Scaling Group (ASG):** Resides securely within Private Subnets, automatically scaling EC2 instances based on CPU utilization.
+- **AWS Managed RDS PostgreSQL (Multi-AZ):** Fully managed relational database located in Private Subnets with automated backups, storage encryption, and automated failover.
+- **AWS Secrets Manager Integration:** Zero hardcoded plaintext database passwords; credentials securely rotated and dynamically supplied to compute tiers.
+- **AWS-Native Custom Domain:** Directs user traffic via DNS CNAME directly to CloudFront & ALB endpoints.
+
+## 2. Cost Analysis
 
 ### A. Cost by Purchasing Option & Optimization (Singapore Region: `ap-southeast-1`)
 | Purchasing Model | Web Compute (EC2) | RDS Managed (PostgreSQL) | Storage, IP & Backup | Total Monthly Cost | Approx. Local Currency (VND) |
@@ -32,65 +24,22 @@ Independent infrastructure and application source code for **Option 4: 1 EC2 Web
 | **Cost Saver (Using db.t3.micro)** | $15.18 | $20.00 | $9.10 | **$44.28 / mo** | ~1,118,000 VND |
 
 ### B. Cross-Region Cost Comparison
-- **Singapore (`ap-southeast-1`):** $47.64 / month (Lowest latency to Southeast Asia & Vietnam: ~30ms).
-- **US East (`us-east-1`):** $42.15 / month (11.5% cheaper due to lower baseline compute and RDS rates in US regions).
+- **Singapore (`ap-southeast-1`):** $47.64 / month.
+- **US East (`us-east-1`):** $42.15 / month.
 
-## 3. Architecture Overview
-![Architecture](infra/architecture_diagram.png)
+## 3. Disaster Recovery & Recovery Time (MTTR)
 
+Tested and verified under real AWS Chaos Engineering scenarios:
 
-### Key Architectural Highlights:
-- **CloudFront CDN Edge Caching:** Caches static assets (`/_next/static/*`, `/static/*`) globally, offloading 80–90% of requests from origin servers, lowering TTFB, and accelerating global page load times.
-- **Application Load Balancer (ALB):** Spans Multi-AZ Public Subnets, balancing incoming HTTP/HTTPS traffic with automated health probes on `/api/health`.
-- **Web Auto Scaling Group (ASG):** Resides securely within **Private Subnets (AZ1 & AZ2)**, automatically scaling EC2 instances based on CPU utilization (70% target tracking).
-- **AWS Managed RDS PostgreSQL (Multi-AZ):** Fully managed relational database located deep within **Private Subnets (AZ1 & AZ2)** with automated daily backups, storage encryption, and automated Multi-AZ failover.
-- **AWS Secrets Manager Integration:** Zero hardcoded plaintext database passwords; credentials securely rotated and dynamically supplied to compute tiers.
-- **Zero-Downtime Rolling Update:** Integrated `aws autoscaling start-instance-refresh` in CI/CD updates container versions progressively without service downtime.
-- **Multi-Tier Monitoring & Alerts:** CloudWatch Alarms (ALB 5XX, Web CPU, RDS Storage, RDS CPU) notify via Amazon SNS Topic; log retention auto-expires after 14 days (Dev) / 30 days (Prod).
-- **AWS-Native Custom Domain:** Directs user traffic via DNS CNAME (DNS-only) directly to Amazon CloudFront Edge & ALB endpoints.
+| Failure Scenario | Recovery Mechanism | Measured Recovery Time (MTTR) | Resilience & Telemetry |
+| :--- | :--- | :--- | :--- |
+| **AWS RDS Managed Database Force Reboot** | Connection pool auto-retry + Graceful 503 | **22s** (reconnect) / **56s** (available) | Process uptime intact; clean HTTP 503 |
+| **RDS Network Ingress Isolation (Port 5432 Block)** | Security Group Ingress re-authorization | **4 seconds** | Fast TLS connection recovery |
+| **EC2 Web Instance Termination** | Web ASG auto-replacement in Private Subnets | **140 seconds** | RDS database completely unaffected |
+| **Target Response Latency & RDS Telemetry** | CloudWatch Metrics (`dev-postgres-rds`) | **8.8ms** avg latency | Steady state CPU: 4.8%–7.0%, freeable RAM: ~210MB |
 
-## 📸 Application Screenshots (Live Environments: Dev & Prod)
+## 4. Application Screenshots
 
 | Development Environment (`opt4-dev.png261.dev`) | Production Environment (`opt4.png261.dev`) |
 | :---: | :---: |
 | ![Development Environment](docs/screenshots/dev_screenshot.png) | ![Production Environment](docs/screenshots/prod_screenshot.png) |
-
-> 🚀 **Deployment Notes:**
-> - **Development (`opt4-dev.png261.dev`):** Debug configuration, Web Auto Scaling Min 1 - Max 2 instances, single-AZ RDS.
-> - **Production (`opt4.png261.dev`):** Production optimized, Web Auto Scaling Min 2 - Max 6 instances, Multi-AZ RDS PostgreSQL with automated failover and AWS ACM SSL/HTTPS.
-
-## ⚛️ Web Application & Docker / Amazon ECR Delivery
-
-### 1. Web Application Architecture
-- **Application:** Next.js Dashboard & Management Platform.
-- **Frontend Stack:** React 18, Next.js App Router, Tailwind CSS, Lucide Icons.
-- **Backend & API:** Node.js Next.js Server Components and REST routes.
-- **Database:** AWS Managed RDS PostgreSQL 16 Multi-AZ in Private Subnet Group.
-
-### 2. Separation of Build and Deployment (Build Once, Deploy Everywhere)
-1. **Multi-Stage Docker Build:**
-   - **Stage 1 (Builder):** Compiles Next.js frontend code and assets.
-   - **Stage 2 (Runner):** Lightweight `node:20-alpine` base image containing only required production runtime files.
-2. **Push to Amazon ECR:**
-   - Image tagged by environment (`latest` for Prod, `dev-latest` for Dev) and pushed to **Amazon Elastic Container Registry (ECR)**.
-3. **Decoupled Deployment:**
-   - EC2 instances do not compile code on-box. They pull verified containers from ECR and manage service lifecycles via `systemd`.
-
-## 4. CI/CD Workflow & Branching Strategy
-- **`dev`**: Main development branch. Automatically runs unit tests, lints CloudFormation, and pushes dev container images.
-- **`main`**: Protected production branch (**Branch Protection Rules** enforce PR reviews). Merging triggers automated production deployment and Web ASG rolling instance refresh.
-
-## 🌐 Custom Domain Configuration (`png261.dev`)
-
-The infrastructure routes traffic for `png261.dev` across both environments:
-
-| Environment | Git Branch | Subdomain | Record Type | Target Destination | Proxy Status |
-| :--- | :--- | :--- | :---: | :--- | :--- |
-| **Development** | `dev` | `opt4-dev.png261.dev` | `CNAME` | `${CloudFrontDistribution.DomainName}` | DNS Only (☁️ Grey Cloud) |
-| **Production** | `main` | `opt4.png261.dev` | `CNAME` | `${CloudFrontDistribution.DomainName}` | DNS Only (☁️ Grey Cloud) |
-
-## ☁️ Native AWS CloudFormation Infrastructure Management (No State File)
-The entire infrastructure is 100% managed with **AWS CloudFormation Native**:
-- **AWS-Managed State:** Resource state is maintained internally by AWS CloudFormation.
-- **Zero State File Overhead:** Eliminates state locking conflicts, accidental leaks, and S3/DynamoDB maintenance overhead.
-- **Drift Detection:** Enables automated configuration drift detection directly from the AWS Console or AWS CLI.
