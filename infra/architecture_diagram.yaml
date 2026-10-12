@@ -29,18 +29,18 @@ Diagram:
       Align: center
       Children:
         - VPC
-        - ECR
         - SecretsManager
+        - ECR
         - CloudWatch
         - SNS
+
+    SecretsManager:
+      Type: AWS::SecretsManager
+      Title: "Secrets Manager"
 
     ECR:
       Type: AWS::ECR
       Title: "Amazon ECR"
-
-    SecretsManager:
-      Type: AWS::SecretsManager::Secret
-      Title: "AWS Secrets Manager"
 
     CloudWatch:
       Type: AWS::CloudWatch
@@ -70,13 +70,20 @@ Diagram:
       Type: AWS::EC2::Subnet
       Preset: PublicSubnet
       Title: "Public Subnet"
+      Direction: horizontal
       Children:
         - ALB
+        - NATGW
 
     ALB:
       Type: AWS::ElasticLoadBalancingV2::LoadBalancer
       Preset: "Application Load Balancer"
       Title: "Application Load Balancer"
+
+    NATGW:
+      Type: AWS::EC2::NatGateway
+      Preset: "NAT gateway"
+      Title: "NAT Gateway"
 
     PrivateSubnets:
       Type: AWS::Diagram::HorizontalStack
@@ -144,15 +151,22 @@ Diagram:
         Type: Open
       Type: orthogonal
     - Source: WebASG
+      SourcePosition: S
+      Target: NATGW
+      TargetPosition: N
+      TargetArrowHead:
+        Type: Open
+      Type: orthogonal
+    - Source: NATGW
       SourcePosition: E
-      Target: SecretsManager
+      Target: ECR
       TargetPosition: W
       TargetArrowHead:
         Type: Open
       Type: orthogonal
     - Source: WebASG
       SourcePosition: E
-      Target: ECR
+      Target: SecretsManager
       TargetPosition: W
       TargetArrowHead:
         Type: Open
