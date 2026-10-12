@@ -27,7 +27,9 @@ Independent infrastructure and application source code for **Option 4: 1 EC2 Web
 | **On-Demand (Default)** | $9.49 | $31.42 | $49.64 | **$90.55 / mo** | Baseline |
 | **1-Year Savings Plan / RI** | $5.98 | $22.62 | $49.64 | **$78.24 / mo** | 14% savings ($12.31/mo) |
 | **3-Year Savings Plan / RI** | $3.79 | $16.02 | $49.64 | **$69.45 / mo** | 23% savings ($21.10/mo) |
-| **Production Scale (`db.t3.small` Multi-AZ)** | $18.98 | $62.84 | $49.64 | **$131.46 / mo** | High availability multi-AZ scale |
+| **Hybrid (Web Spot + RDS RI)** | $2.84 | $22.62 | $49.64 | **$75.10 / mo** | 17% savings ($15.45/mo) |
+
+*(Optional Production Scale: `db.t3.small` Multi-AZ + Web `t3.small` is **$131.46 / mo**).*
 
 ## 3. Disaster Recovery & Recovery Time (MTTR)
 
