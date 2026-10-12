@@ -17,17 +17,17 @@ Independent infrastructure and application source code for **Option 4: 1 EC2 Web
 | **Application Load Balancer (ALB)** | `AWS::ElasticLoadBalancingV2::LoadBalancer` | **$16.43** | Multi-AZ load balancer and SSL/TLS routing |
 | **Web Compute (Auto Scaling Group)** | `AWS::AutoScaling::AutoScalingGroup` (`t3.micro`) | **$9.49** | Stateless web application compute tier |
 | **Secrets & Operational Monitoring** | `SecretsManager`, `CloudWatch`, `SNS` | **$0.36** | Dual Secrets (RDS + App) and multi-tier alarms |
-| **Total Monthly Cost** | `infra/modules/` | **$90.55 / mo** | ~2,290,000 VND / month |
+| **Total Monthly Cost** | `infra/modules/` | **$90.55 / mo** | Baseline on-demand configuration |
 
 *(Saves **$69.35 / month** compared to the previous 7 VPC Interface Endpoints architecture at $102.20/month).*
 
 ### B. Cost by Purchasing Option & Commitment
-| Purchasing Model | Web Compute | RDS Managed DB | NAT Gateway & ALB | Total Monthly Cost | Approx. Local Currency (VND) |
+| Purchasing Model | Web Compute | RDS Managed DB | NAT Gateway & ALB | Total Monthly Cost | Cost Savings vs On-Demand |
 | :--- | :--- | :--- | :--- | :--- | :--- |
-| **On-Demand (Default)** | $9.49 | $31.42 | $49.64 | **$90.55 / mo** | ~2,290,000 VND |
-| **1-Year Savings Plan / RI** | $5.98 | $22.62 | $49.64 | **$78.24 / mo** *(14% savings)* | ~1,980,000 VND |
-| **3-Year Savings Plan / RI** | $3.79 | $16.02 | $49.64 | **$69.45 / mo** *(23% savings)* | ~1,755,000 VND |
-| **Production Scale (`db.t3.small` Multi-AZ)** | $18.98 | $62.84 | $49.64 | **$131.46 / mo** | ~3,325,000 VND |
+| **On-Demand (Default)** | $9.49 | $31.42 | $49.64 | **$90.55 / mo** | Baseline |
+| **1-Year Savings Plan / RI** | $5.98 | $22.62 | $49.64 | **$78.24 / mo** | 14% savings ($12.31/mo) |
+| **3-Year Savings Plan / RI** | $3.79 | $16.02 | $49.64 | **$69.45 / mo** | 23% savings ($21.10/mo) |
+| **Production Scale (`db.t3.small` Multi-AZ)** | $18.98 | $62.84 | $49.64 | **$131.46 / mo** | High availability multi-AZ scale |
 
 ## 3. Disaster Recovery & Recovery Time (MTTR)
 
