@@ -15,17 +15,28 @@ Independent infrastructure and application source code for **Option 4: 1 EC2 Web
 
 ## 2. Cost Analysis
 
-### A. Cost by Purchasing Option & Optimization (Singapore Region: `ap-southeast-1`)
-| Purchasing Model | Web Compute (EC2) | RDS Managed (PostgreSQL) | Storage, IP & Backup | Total Monthly Cost | Approx. Local Currency (VND) |
-| :--- | :--- | :--- | :--- | :--- | :--- |
-| **On-Demand (Default)** | $15.18 | $23.36 (`db.t4g.small`) | $9.10 | **$47.64 / mo** | ~1,203,000 VND |
-| **1-Year Savings Plan / RI** | $9.56 | $16.82 | $9.10 | **$35.48 / mo** *(25% savings)* | ~895,000 VND |
-| **3-Year Savings Plan / RI** | $6.06 | $11.92 | $9.10 | **$27.08 / mo** *(43% savings)* | ~684,000 VND |
-| **Cost Saver (Using db.t3.micro)** | $15.18 | $20.00 | $9.10 | **$44.28 / mo** | ~1,118,000 VND |
+> 💡 **Verified via Infracost CLI:** Cost calculations derived directly from CloudFormation templates using `infracost scan ./infra/modules`.
 
-### B. Cross-Region Cost Comparison
-- **Singapore (`ap-southeast-1`):** $47.64 / month.
-- **US East (`us-east-1`):** $42.15 / month.
+### A. Component Cost Breakdown (Infracost CLI Verified)
+| CloudFormation Module / Component | AWS Resource Type | Monthly Cost (USD) | Notes |
+| :--- | :--- | :--- | :--- |
+| **AWS Managed RDS PostgreSQL** | `AWS::RDS::DBInstance` (`db.t3.micro` + 20GB gp3) | **$31.42** | Managed engine, automated backups & storage |
+| **Application Load Balancer (ALB)** | `AWS::ElasticLoadBalancingV2::LoadBalancer` | **$16.43** | Multi-AZ load balancer and SSL/TLS routing |
+| **Web Compute (Auto Scaling Group)** | `AWS::AutoScaling::AutoScalingGroup` (`t3.micro`) | **$9.49** | Stateless web application compute tier |
+| **Secrets & Operational Monitoring** | `SecretsManager`, `CloudWatch`, `SNS` | **$0.36** | Dual Secrets (RDS + App) and multi-tier alarms |
+| **Subtotal (Production HA Application Tier)** | `infra/modules/app.yaml` | **$57.70 / mo** | ~1,460,000 VND / month |
+| **Private VPC Interface Endpoints (Optional)** | `AWS::EC2::VPCEndpoint` (7 endpoints) | **$102.20** | SSM, ECR, CloudWatch Logs in Private Subnets |
+| **Total (Full Enterprise Isolated Architecture)** | `infra/modules/` | **$159.90 / mo** | ~4,045,000 VND / month |
+
+### B. Cost by Purchasing Option & Architecture Mode
+| Purchasing Model / Mode | Web Compute | RDS Managed DB | ALB & Support | Total (Lean Mode)* | Total (Full Isolated) | Approx. Local Currency (Lean) |
+| :--- | :--- | :--- | :--- | :--- | :--- | :--- |
+| **On-Demand (Default)** | $9.49 | $31.42 | $16.79 | **$57.70 / mo** | **$159.90 / mo** | ~1,460,000 VND |
+| **1-Year Savings Plan / RI** | $5.98 | $22.62 | $16.79 | **$45.39 / mo** *(21% off)* | **$147.59 / mo** | ~1,149,000 VND |
+| **3-Year Savings Plan / RI** | $3.79 | $16.02 | $16.79 | **$36.60 / mo** *(37% off)* | **$138.80 / mo** | ~927,000 VND |
+| **Production Scale (`db.t3.small` Multi-AZ)** | $18.98 | $62.84 | $16.79 | **$98.61 / mo** | **$200.81 / mo** | ~2,495,000 VND |
+
+*\*Lean Mode: Compute + ALB + CloudFront routing without dedicated VPC Interface Endpoints ($102.20/mo).*
 
 ## 3. Disaster Recovery & Recovery Time (MTTR)
 
